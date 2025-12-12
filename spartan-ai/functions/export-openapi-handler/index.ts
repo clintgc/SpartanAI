@@ -1,5 +1,5 @@
 import { APIGatewayClient, GetExportCommand } from '@aws-sdk/client-api-gateway';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { CloudFormationCustomResourceEvent, CloudFormationCustomResourceResponse } from 'aws-lambda';
 
 const apiGatewayClient = new APIGatewayClient({});
@@ -127,6 +127,85 @@ export const handler = async (
     const deployDate = new Date().toISOString().split('T')[0].replace(/-/g, '');
     const versionedOpenApiKey = `api-docs/openapi-${deployDate}.json`;
     const versionedSwaggerKey = `api-docs/swagger-${deployDate}.json`;
+
+    // ============================================================================
+    // VERSION RETENTION - Keep last 5 versions, cleanup older files
+    // ============================================================================
+    const MAX_VERSIONS_TO_KEEP = 5;
+    
+    try {
+      // List all versioned OpenAPI files (openapi-YYYYMMDD.json pattern)
+      const listOpenApiVersions = new ListObjectsV2Command({
+        Bucket: bucketName,
+        Prefix: 'api-docs/openapi-',
+      });
+      const openApiListResponse = await s3Client.send(listOpenApiVersions);
+      
+      // List all versioned Swagger files (swagger-YYYYMMDD.json pattern)
+      const listSwaggerVersions = new ListObjectsV2Command({
+        Bucket: bucketName,
+        Prefix: 'api-docs/swagger-',
+      });
+      const swaggerListResponse = await s3Client.send(listSwaggerVersions);
+
+      // Extract and sort versioned files by date (newest first)
+      const extractVersions = (contents: any[] = []) => {
+        return contents
+          .filter((obj) => obj.Key && /-\d{8}\.json$/.test(obj.Key))
+          .map((obj) => ({
+            key: obj.Key!,
+            date: obj.Key!.match(/-(\d{8})\.json$/)?.[1] || '',
+            lastModified: obj.LastModified || new Date(0),
+          }))
+          .sort((a, b) => {
+            // Sort by date string (descending) or lastModified (descending)
+            if (a.date && b.date) {
+              return b.date.localeCompare(a.date);
+            }
+            return b.lastModified.getTime() - a.lastModified.getTime();
+          });
+      };
+
+      const openApiVersions = extractVersions(openApiListResponse.Contents);
+      const swaggerVersions = extractVersions(swaggerListResponse.Contents);
+
+      // Delete older versions (keep only the last MAX_VERSIONS_TO_KEEP)
+      const deleteOldVersions = async (versions: Array<{ key: string; date: string }>) => {
+        if (versions.length >= MAX_VERSIONS_TO_KEEP) {
+          const versionsToDelete = versions.slice(MAX_VERSIONS_TO_KEEP);
+          for (const version of versionsToDelete) {
+            try {
+              const deleteCommand = new DeleteObjectCommand({
+                Bucket: bucketName,
+                Key: version.key,
+              });
+              await s3Client.send(deleteCommand);
+              console.log(`Deleted old version: ${version.key}`);
+            } catch (error) {
+              console.warn(`Failed to delete old version ${version.key}:`, error);
+              // Continue with other deletions even if one fails
+            }
+          }
+        }
+      };
+
+      // Delete old OpenAPI versions (but not the current one we're about to upload)
+      const openApiVersionsToCheck = openApiVersions.filter((v) => v.key !== versionedOpenApiKey);
+      await deleteOldVersions(openApiVersionsToCheck);
+
+      // Delete old Swagger versions (but not the current one we're about to upload)
+      const swaggerVersionsToCheck = swaggerVersions.filter((v) => v.key !== versionedSwaggerKey);
+      await deleteOldVersions(swaggerVersionsToCheck);
+
+      console.log(`Version retention: Keeping last ${MAX_VERSIONS_TO_KEEP} versions, cleaned up older files`);
+    } catch (error) {
+      console.warn('Error during version cleanup (continuing with upload):', error);
+      // Continue with upload even if cleanup fails
+    }
+
+    // ============================================================================
+    // UPLOAD NEW VERSIONED FILES
+    // ============================================================================
 
     // Upload versioned files
     const putVersionedOpenApiCommand = new PutObjectCommand({
