@@ -33,14 +33,14 @@ config:
       maxP95ResponseTime: 8000  # Fail if p95 response time exceeds 8s
       maxP99ResponseTime: 10000  # Fail if p99 response time exceeds 10s
   processor: "./processor.js"
-  payload:
-    # Use payload file for account IDs if needed
-    path: "./accounts.csv"
-    fields:
-      - "accountID"
-      - "cameraID"
-    order: "random"
-    skipHeader: true
+  # Optional: Use payload file for account IDs
+  # payload:
+  #   path: "./accounts.csv"
+  #   fields:
+  #     - "accountID"
+  #     - "cameraID"
+  #   order: "random"
+  #   skipHeader: true
 
 scenarios:
   - name: "Scan request load test - 100 concurrent users"

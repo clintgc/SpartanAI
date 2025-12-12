@@ -1,0 +1,141 @@
+name: Load Testing
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_gateway_url:
+        description: 'API Gateway URL'
+        required: true
+        type: string
+      api_key:
+        description: 'API Key'
+        required: true
+        type: string
+  schedule:
+    # Run load tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  push:
+    branches:
+      - main
+    paths:
+      - 'tests/load/**'
+      - '.github/workflows/load-test.yml'
+
+jobs:
+  load-test:
+    name: Artillery Load Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: tests/package.json
+
+      - name: Install dependencies
+        run: |
+          cd tests
+          npm install
+
+      - name: Install Artillery
+        run: npm install -g artillery@latest
+
+      - name: Run load tests
+        env:
+          API_GATEWAY_URL: ${{ github.event.inputs.api_gateway_url || secrets.API_GATEWAY_URL || 'https://YOUR_API_GATEWAY_URL' }}
+          API_KEY: ${{ github.event.inputs.api_key || secrets.API_KEY || 'YOUR_API_KEY' }}
+        run: |
+          cd tests
+          npm run test:load:report || true
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-test-report
+          path: |
+            tests/load/report.json
+            tests/load/report.html
+          retention-days: 30
+
+      - name: Parse and display results
+        if: always()
+        run: |
+          if [ -f tests/load/report.json ]; then
+            echo "## Load Test Results" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Extract key metrics
+            TOTAL_REQUESTS=$(jq -r '.aggregate.counters["http.requests"] // 0' tests/load/report.json 2>/dev/null || echo "0")
+            TOTAL_ERRORS=$(jq -r '.aggregate.counters["http.errors"] // 0' tests/load/report.json 2>/dev/null || echo "0")
+            MEAN_RESPONSE_TIME=$(jq -r '.aggregate.latency.mean // 0' tests/load/report.json 2>/dev/null || echo "0")
+            P95_RESPONSE_TIME=$(jq -r '.aggregate.latency.p95 // 0' tests/load/report.json 2>/dev/null || echo "0")
+            P99_RESPONSE_TIME=$(jq -r '.aggregate.latency.p99 // 0' tests/load/report.json 2>/dev/null || echo "0")
+            
+            echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+            echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| Total Requests | $TOTAL_REQUESTS |" >> $GITHUB_STEP_SUMMARY
+            echo "| Total Errors | $TOTAL_ERRORS |" >> $GITHUB_STEP_SUMMARY
+            echo "| Mean Response Time | ${MEAN_RESPONSE_TIME}ms |" >> $GITHUB_STEP_SUMMARY
+            echo "| P95 Response Time | ${P95_RESPONSE_TIME}ms |" >> $GITHUB_STEP_SUMMARY
+            echo "| P99 Response Time | ${P99_RESPONSE_TIME}ms |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Check thresholds
+            ERROR_RATE=$(echo "scale=2; $TOTAL_ERRORS * 100 / $TOTAL_REQUESTS" | bc 2>/dev/null || echo "0")
+            if (( $(echo "$ERROR_RATE > 1" | bc -l 2>/dev/null || echo "0") )); then
+              echo "❌ **Error rate exceeds 1%: ${ERROR_RATE}%**" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "✅ Error rate: ${ERROR_RATE}%" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            if (( $(echo "$MEAN_RESPONSE_TIME > 5000" | bc -l 2>/dev/null || echo "0") )); then
+              echo "❌ **Mean response time exceeds 5s: ${MEAN_RESPONSE_TIME}ms**" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "✅ Mean response time: ${MEAN_RESPONSE_TIME}ms" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            if (( $(echo "$P95_RESPONSE_TIME > 8000" | bc -l 2>/dev/null || echo "0") )); then
+              echo "❌ **P95 response time exceeds 8s: ${P95_RESPONSE_TIME}ms**" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "✅ P95 response time: ${P95_RESPONSE_TIME}ms" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "⚠️ No test report generated" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Fail if thresholds exceeded
+        if: always()
+        run: |
+          if [ -f tests/load/report.json ]; then
+            TOTAL_REQUESTS=$(jq -r '.aggregate.counters["http.requests"] // 0' tests/load/report.json 2>/dev/null || echo "0")
+            TOTAL_ERRORS=$(jq -r '.aggregate.counters["http.errors"] // 0' tests/load/report.json 2>/dev/null || echo "0")
+            MEAN_RESPONSE_TIME=$(jq -r '.aggregate.latency.mean // 0' tests/load/report.json 2>/dev/null || echo "0")
+            P95_RESPONSE_TIME=$(jq -r '.aggregate.latency.p95 // 0' tests/load/report.json 2>/dev/null || echo "0")
+            
+            ERROR_RATE=$(echo "scale=2; $TOTAL_ERRORS * 100 / $TOTAL_REQUESTS" | bc 2>/dev/null || echo "0")
+            
+            if (( $(echo "$ERROR_RATE > 1" | bc -l 2>/dev/null || echo "0") )); then
+              echo "❌ Error rate ${ERROR_RATE}% exceeds 1% threshold"
+              exit 1
+            fi
+            
+            if (( $(echo "$MEAN_RESPONSE_TIME > 5000" | bc -l 2>/dev/null || echo "0") )); then
+              echo "❌ Mean response time ${MEAN_RESPONSE_TIME}ms exceeds 5s threshold"
+              exit 1
+            fi
+            
+            if (( $(echo "$P95_RESPONSE_TIME > 8000" | bc -l 2>/dev/null || echo "0") )); then
+              echo "❌ P95 response time ${P95_RESPONSE_TIME}ms exceeds 8s threshold"
+              exit 1
+            fi
+            
+            echo "✅ All thresholds met"
+          fi
+

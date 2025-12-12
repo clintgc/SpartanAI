@@ -46,7 +46,10 @@ export const handler = async (
     openapiSpec.info = {
       title: 'Spartan AI Security Service API',
       version: '1.0.0',
-      description: 'API for threat detection using Captis integration',
+      description: 'API for threat detection using Captis integration. Provides endpoints for image scanning, consent management, and scan retrieval.',
+      contact: {
+        name: 'Spartan AI Support',
+      },
     };
 
     // Add/update servers
@@ -56,6 +59,67 @@ export const handler = async (
         description: 'Production server',
       },
     ];
+
+    // Enhance OpenAPI spec with security schemes
+    if (!openapiSpec.components) {
+      openapiSpec.components = {};
+    }
+    if (!openapiSpec.components.securitySchemes) {
+      openapiSpec.components.securitySchemes = {};
+    }
+    openapiSpec.components.securitySchemes['ApiKeyAuth'] = {
+      type: 'apiKey',
+      in: 'header',
+      name: 'x-api-key',
+      description: 'API Key for authentication',
+    };
+
+    // Add security requirement to all paths
+    if (openapiSpec.paths) {
+      Object.keys(openapiSpec.paths).forEach((path) => {
+        Object.keys(openapiSpec.paths[path]).forEach((method) => {
+          if (method !== 'parameters' && openapiSpec.paths[path][method]) {
+            if (!openapiSpec.paths[path][method].security) {
+              openapiSpec.paths[path][method].security = [{ ApiKeyAuth: [] }];
+            }
+          }
+        });
+      });
+    }
+
+    // Enhance error responses with proper descriptions
+    const enhanceErrorResponses = (pathObj: any) => {
+      if (!pathObj) return;
+      Object.keys(pathObj).forEach((method) => {
+        if (method === 'parameters') return;
+        const methodObj = pathObj[method];
+        if (methodObj.responses) {
+          // Add descriptions to error responses
+          if (methodObj.responses['400']) {
+            methodObj.responses['400'].description = methodObj.responses['400'].description || 'Bad Request - Invalid input parameters';
+          }
+          if (methodObj.responses['403']) {
+            methodObj.responses['403'].description = methodObj.responses['403'].description || 'Forbidden - Consent required or access denied';
+          }
+          if (methodObj.responses['404']) {
+            methodObj.responses['404'].description = methodObj.responses['404'].description || 'Not Found - Resource not found';
+          }
+          if (methodObj.responses['429']) {
+            methodObj.responses['429'].description = methodObj.responses['429'].description || 'Too Many Requests - Quota exceeded or rate limit reached';
+          }
+          if (methodObj.responses['500']) {
+            methodObj.responses['500'].description = methodObj.responses['500'].description || 'Internal Server Error - Server error occurred';
+          }
+        }
+      });
+    };
+
+    // Enhance all paths
+    if (openapiSpec.paths) {
+      Object.keys(openapiSpec.paths).forEach((path) => {
+        enhanceErrorResponses(openapiSpec.paths[path]);
+      });
+    }
 
     const specJson = JSON.stringify(openapiSpec, null, 2);
 
