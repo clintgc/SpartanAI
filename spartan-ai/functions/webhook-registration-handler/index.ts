@@ -5,6 +5,38 @@ import 'source-map-support/register';
 
 const dbService = new DynamoDbService(process.env.TABLE_PREFIX || 'spartan-ai');
 
+/**
+ * Validates webhook URL format and protocol
+ */
+function validateWebhookUrl(urlString: string): { valid: boolean; error?: string } {
+  try {
+    const url = new URL(urlString);
+    
+    // Must use HTTPS
+    if (url.protocol !== 'https:') {
+      return { valid: false, error: 'webhookUrl must use HTTPS protocol' };
+    }
+    
+    // Must have a valid hostname
+    if (!url.hostname || url.hostname.length === 0) {
+      return { valid: false, error: 'webhookUrl must have a valid hostname' };
+    }
+    
+    // Reject localhost and private IPs (security)
+    if (url.hostname === 'localhost' || 
+        url.hostname.startsWith('127.') || 
+        url.hostname.startsWith('192.168.') ||
+        url.hostname.startsWith('10.') ||
+        url.hostname.startsWith('172.')) {
+      return { valid: false, error: 'webhookUrl cannot point to localhost or private IP addresses' };
+    }
+    
+    return { valid: true };
+  } catch (error) {
+    return { valid: false, error: 'Invalid webhookUrl format. Must be a valid URL.' };
+  }
+}
+
 export const handler = async (
   event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> => {
@@ -22,55 +54,81 @@ export const handler = async (
       };
     }
 
-    const request = JSON.parse(event.body);
-    const { webhookUrl } = request;
-
-    if (!webhookUrl) {
-      return {
-        statusCode: 400,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ error: 'webhookUrl is required' }),
-      };
-    }
-
-    // Validate HTTPS URL
+    let request;
     try {
-      const url = new URL(webhookUrl);
-      if (url.protocol !== 'https:') {
-        return {
-          statusCode: 400,
-          headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ error: 'webhookUrl must use HTTPS' }),
-        };
-      }
-    } catch (error) {
+      request = JSON.parse(event.body);
+    } catch (parseError) {
       return {
         statusCode: 400,
         headers: {
           'Access-Control-Allow-Origin': '*',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ error: 'Invalid webhookUrl format' }),
+        body: JSON.stringify({ error: 'Invalid JSON in request body' }),
       };
     }
 
-    // Get accountID from API key or request header
-    const accountID = event.requestContext.identity?.accountId || event.headers['x-account-id'];
+    const { webhookUrl, accountID: requestAccountID } = request;
 
-    if (!accountID) {
+    if (!webhookUrl || typeof webhookUrl !== 'string') {
       return {
         statusCode: 400,
         headers: {
           'Access-Control-Allow-Origin': '*',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ error: 'accountID is required' }),
+        body: JSON.stringify({ error: 'webhookUrl is required and must be a string' }),
+      };
+    }
+
+    // Validate webhook URL format and security
+    const urlValidation = validateWebhookUrl(webhookUrl);
+    if (!urlValidation.valid) {
+      return {
+        statusCode: 400,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ error: urlValidation.error }),
+      };
+    }
+
+    // Get accountID from request body (preferred), header, or API key context
+    const accountID = requestAccountID || 
+                      event.headers['x-account-id'] || 
+                      event.requestContext.identity?.accountId;
+
+    if (!accountID || typeof accountID !== 'string') {
+      return {
+        statusCode: 400,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          error: 'accountID is required. Provide it in the request body or x-account-id header.' 
+        }),
+      };
+    }
+
+    // Check for existing webhook subscriptions to prevent duplicates (optional)
+    const existingSubscriptions = await dbService.getWebhookSubscriptions(accountID);
+    const duplicateUrl = existingSubscriptions.find(
+      sub => sub.webhookUrl === webhookUrl && sub.enabled
+    );
+    
+    if (duplicateUrl) {
+      return {
+        statusCode: 409,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          error: 'A webhook with this URL already exists for this account',
+          existingWebhookId: duplicateUrl.webhookId,
+        }),
       };
     }
 
@@ -79,6 +137,8 @@ export const handler = async (
 
     // Store webhook subscription
     await dbService.createWebhookSubscription(accountID, webhookId, webhookUrl);
+
+    console.log(`Webhook registered: ${webhookId} for account ${accountID} -> ${webhookUrl}`);
 
     return {
       statusCode: 201,

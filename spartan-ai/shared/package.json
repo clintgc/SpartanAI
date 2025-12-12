@@ -19,6 +19,7 @@
     "@aws-sdk/client-dynamodb": "^3.490.0",
     "@aws-sdk/lib-dynamodb": "^3.490.0",
     "@aws-sdk/client-sns": "^3.490.0",
+    "@aws-sdk/client-ssm": "^3.490.0",
     "axios": "^1.6.2",
     "twilio": "^4.19.0",
     "@sendgrid/mail": "^8.1.0",

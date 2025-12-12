@@ -98,3 +98,22 @@ export interface WebhookSubscription {
   createdAt: string;
 }
 
+export interface DeviceToken {
+  accountID: string;
+  deviceToken: string;
+  platform?: 'ios' | 'android' | 'web';
+  appVersion?: string;
+  registeredAt: string;
+  lastUsedAt?: string;
+}
+
+export interface AccountProfile {
+  accountID: string;
+  name?: string;
+  email: string;
+  phoneNumber?: string;
+  createdAt: string;
+  updatedAt: string;
+  unsubscribeToken?: string; // For email unsubscribe links
+}
+

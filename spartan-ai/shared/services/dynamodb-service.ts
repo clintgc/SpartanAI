@@ -11,6 +11,7 @@ import {
   PutCommand,
   GetCommand,
   UpdateCommand,
+  DeleteCommand,
   QueryCommand as DocQueryCommand,
   ScanCommand as DocScanCommand,
 } from '@aws-sdk/lib-dynamodb';
@@ -19,6 +20,8 @@ import {
   ConsentRecord,
   ThreatLocation,
   WebhookSubscription,
+  DeviceToken,
+  AccountProfile,
 } from '../models';
 
 export class DynamoDbService {
@@ -192,6 +195,89 @@ export class DynamoDbService {
         UpdateExpression: 'SET enabled = :enabled',
         ExpressionAttributeValues: {
           ':enabled': enabled,
+        },
+      })
+    );
+  }
+
+  // Device token operations
+  async getDeviceTokens(accountID: string): Promise<DeviceToken[]> {
+    const result = await this.docClient.send(
+      new DocQueryCommand({
+        TableName: `${this.tablePrefix}-device-tokens`,
+        KeyConditionExpression: 'accountID = :accountID',
+        ExpressionAttributeValues: {
+          ':accountID': accountID,
+        },
+      })
+    );
+    return (result.Items || []) as DeviceToken[];
+  }
+
+  async registerDeviceToken(
+    accountID: string,
+    deviceToken: string,
+    platform?: 'ios' | 'android' | 'web',
+    appVersion?: string
+  ): Promise<void> {
+    const timestamp = new Date().toISOString();
+    await this.docClient.send(
+      new PutCommand({
+        TableName: `${this.tablePrefix}-device-tokens`,
+        Item: {
+          accountID,
+          deviceToken,
+          platform,
+          appVersion,
+          registeredAt: timestamp,
+          lastUsedAt: timestamp,
+        },
+      })
+    );
+  }
+
+  async updateDeviceTokenLastUsed(accountID: string, deviceToken: string): Promise<void> {
+    await this.docClient.send(
+      new UpdateCommand({
+        TableName: `${this.tablePrefix}-device-tokens`,
+        Key: { accountID, deviceToken },
+        UpdateExpression: 'SET lastUsedAt = :lastUsed',
+        ExpressionAttributeValues: {
+          ':lastUsed': new Date().toISOString(),
+        },
+      })
+    );
+  }
+
+  async removeDeviceToken(accountID: string, deviceToken: string): Promise<void> {
+    await this.docClient.send(
+      new DeleteCommand({
+        TableName: `${this.tablePrefix}-device-tokens`,
+        Key: { accountID, deviceToken },
+      })
+    );
+  }
+
+  // Account profile operations
+  async getAccountProfile(accountID: string): Promise<AccountProfile | null> {
+    const result = await this.docClient.send(
+      new GetCommand({
+        TableName: `${this.tablePrefix}-account-profiles`,
+        Key: { accountID },
+      })
+    );
+    return result.Item as AccountProfile | null;
+  }
+
+  async updateAccountProfile(profile: AccountProfile): Promise<void> {
+    const timestamp = new Date().toISOString();
+    await this.docClient.send(
+      new PutCommand({
+        TableName: `${this.tablePrefix}-account-profiles`,
+        Item: {
+          ...profile,
+          updatedAt: timestamp,
+          createdAt: profile.createdAt || timestamp,
         },
       })
     );

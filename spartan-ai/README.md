@@ -92,6 +92,59 @@ Required environment variables (set in AWS Systems Manager Parameter Store or La
 - `PUT /api/v1/consent` - Update opt-in/opt-out status
 - `POST /api/v1/webhooks` - Register NOC webhook URLs
 
+## API Documentation
+
+After deployment, the API documentation is automatically generated and available in multiple formats:
+
+### Accessing Documentation
+
+1. **Swagger UI (Interactive)** - Main documentation interface:
+   - Check CloudFormation outputs after deployment for the `SwaggerUIUrl` output
+   - Example: `http://spartan-ai-api-docs-ACCOUNT_ID.s3-website-REGION.amazonaws.com`
+   - The Swagger UI allows you to:
+     - Browse all API endpoints
+     - View request/response schemas
+     - Test API calls directly from the browser
+     - Save your API key for authenticated requests
+
+2. **OpenAPI JSON (Latest)**:
+   - Check CloudFormation outputs for `ApiDocumentationUrl`
+   - Direct URL: `https://spartan-ai-api-docs-ACCOUNT_ID.s3.amazonaws.com/api-docs/openapi.json`
+   - Use this URL with OpenAPI tools, Postman, or API clients
+
+3. **Versioned Documentation**:
+   - Each deployment creates timestamped versions: `openapi-YYYYMMDD.json`
+   - Example: `openapi-20241212.json` for December 12, 2024 deployment
+   - Access via: `https://spartan-ai-api-docs-ACCOUNT_ID.s3.amazonaws.com/api-docs/openapi-YYYYMMDD.json`
+   - Useful for tracking API changes over time
+
+### Finding Documentation URLs
+
+After deploying, run:
+```bash
+cd infrastructure
+aws cloudformation describe-stacks \
+  --stack-name SpartanAiStack \
+  --query 'Stacks[0].Outputs[?OutputKey==`SwaggerUIUrl` || OutputKey==`ApiDocumentationUrl`].{Key:OutputKey,Value:OutputValue}' \
+  --output table
+```
+
+Or check the AWS Console:
+1. Go to CloudFormation → Your Stack
+2. Click the "Outputs" tab
+3. Look for:
+   - `SwaggerUIUrl` - Interactive documentation
+   - `ApiDocumentationUrl` - OpenAPI JSON (latest)
+   - `SwaggerDocumentationUrl` - Swagger JSON (latest)
+   - `DocumentationBucketName` - S3 bucket with all versions
+
+### Documentation Features
+
+- **Auto-generated**: Documentation is automatically exported from your deployed API Gateway on every CDK deploy
+- **Versioned**: Each deployment creates a timestamped version for change tracking
+- **Interactive**: Swagger UI provides a fully interactive API testing interface
+- **Always up-to-date**: Documentation reflects your current API Gateway configuration
+
 ## License
 
 MIT
