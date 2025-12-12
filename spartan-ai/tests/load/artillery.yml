@@ -1,0 +1,40 @@
+config:
+  target: "https://YOUR_API_GATEWAY_URL/v1"
+  phases:
+    - duration: 60
+      arrivalRate: 100
+      name: "Sustained load test"
+  variables:
+    apiKey: "YOUR_API_KEY"
+    accountID: "test-account-001"
+    cameraID: "camera-001"
+  plugins:
+    expect: {}
+  processor: "./processor.js"
+
+scenarios:
+  - name: "Scan request load test"
+    flow:
+      - post:
+          url: "/api/v1/scan"
+          headers:
+            x-api-key: "{{ apiKey }}"
+            Content-Type: "application/json"
+          json:
+            image: "{{ $randomBase64Image }}"
+            metadata:
+              cameraID: "{{ cameraID }}"
+              accountID: "{{ accountID }}"
+              location:
+                lat: 40.7128
+                lon: -74.0060
+              timestamp: "{{ $timestamp }}"
+          capture:
+            - json: "$.scanId"
+              as: "scanId"
+          expect:
+            - statusCode: 200
+            - contentType: json
+            - hasProperty: scanId
+            - maxResponseTime: 5000
+

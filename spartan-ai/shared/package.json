@@ -1,0 +1,37 @@
+{
+  "name": "spartan-ai-shared",
+  "version": "1.0.0",
+  "description": "Shared code for Spartan AI Lambda functions",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "test": "jest"
+  },
+  "keywords": [
+    "aws",
+    "lambda",
+    "shared"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.490.0",
+    "@aws-sdk/lib-dynamodb": "^3.490.0",
+    "@aws-sdk/client-sns": "^3.490.0",
+    "axios": "^1.6.2",
+    "twilio": "^4.19.0",
+    "@sendgrid/mail": "^8.1.0",
+    "firebase-admin": "^12.0.0",
+    "uuid": "^9.0.1",
+    "source-map-support": "^0.5.21"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/uuid": "^9.0.7",
+    "typescript": "^5.3.3",
+    "jest": "^29.7.0",
+    "@types/jest": "^29.5.11"
+  }
+}
+
