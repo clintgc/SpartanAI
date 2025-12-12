@@ -7,7 +7,9 @@
     "test:unit": "jest --testPathPattern=unit",
     "test:integration": "jest --testPathPattern=integration",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "test:load": "artillery run tests/load/artillery.yml",
+    "test:load:report": "artillery run --output tests/load/report.json tests/load/artillery.yml && artillery report tests/load/report.json"
   },
   "devDependencies": {
     "@types/jest": "^29.5.11",
@@ -17,7 +19,8 @@
     "typescript": "^5.3.3",
     "axios": "^1.6.2",
     "@faker-js/faker": "^8.3.1",
-    "aws-cdk-lib": "^2.100.0"
+    "aws-cdk-lib": "^2.100.0",
+    "artillery": "^2.0.0"
   }
 }
 

@@ -1,24 +1,57 @@
 config:
-  target: "https://YOUR_API_GATEWAY_URL/v1"
+  target: "{{ $processEnvironment.API_GATEWAY_URL || 'https://YOUR_API_GATEWAY_URL' }}"
   phases:
-    - duration: 60
+    # Warm-up phase: Ramp up to 100 concurrent users
+    - duration: 30
+      arrivalRate: 10
+      rampTo: 100
+      name: "Warm-up phase"
+    # Sustained load: 100 concurrent users for 5 minutes
+    - duration: 300
       arrivalRate: 100
-      name: "Sustained load test"
+      name: "Sustained load test - 100 concurrent users"
+    # Spike test: Increase to 150 concurrent users
+    - duration: 60
+      arrivalRate: 150
+      name: "Spike test"
+    # Cool-down phase: Ramp down
+    - duration: 30
+      arrivalRate: 150
+      rampTo: 0
+      name: "Cool-down phase"
   variables:
-    apiKey: "YOUR_API_KEY"
-    accountID: "test-account-001"
-    cameraID: "camera-001"
+    apiKey: "{{ $processEnvironment.API_KEY || 'YOUR_API_KEY' }}"
+    accountID: "test-account-{{ $randomInt(1, 1000) }}"
+    cameraID: "camera-{{ $randomInt(1, 100) }}"
   plugins:
     expect: {}
+    metrics-by-endpoint:
+      stripQueryString: true
+    ensure:
+      maxErrorRate: 1  # Fail if error rate exceeds 1%
+      maxMeanResponseTime: 5000  # Fail if mean response time exceeds 5s
+      maxP95ResponseTime: 8000  # Fail if p95 response time exceeds 8s
+      maxP99ResponseTime: 10000  # Fail if p99 response time exceeds 10s
   processor: "./processor.js"
+  payload:
+    # Use payload file for account IDs if needed
+    path: "./accounts.csv"
+    fields:
+      - "accountID"
+      - "cameraID"
+    order: "random"
+    skipHeader: true
 
 scenarios:
-  - name: "Scan request load test"
+  - name: "Scan request load test - 100 concurrent users"
+    weight: 100
     flow:
+      # POST /api/v1/scan - Main load test endpoint
       - post:
           url: "/api/v1/scan"
           headers:
             x-api-key: "{{ apiKey }}"
+            x-account-id: "{{ accountID }}"
             Content-Type: "application/json"
           json:
             image: "{{ $randomBase64Image }}"
@@ -26,15 +59,46 @@ scenarios:
               cameraID: "{{ cameraID }}"
               accountID: "{{ accountID }}"
               location:
-                lat: 40.7128
-                lon: -74.0060
+                lat: "{{ $randomFloat(40.0, 41.0) }}"
+                lon: "{{ $randomFloat(-74.0, -73.0) }}"
               timestamp: "{{ $timestamp }}"
           capture:
             - json: "$.scanId"
               as: "scanId"
           expect:
-            - statusCode: 200
+            - statusCode: [200, 201, 202]
             - contentType: json
             - hasProperty: scanId
             - maxResponseTime: 5000
+          # Track metrics
+          think: 1  # 1 second think time between requests
+      
+      # Optional: Poll for scan results (if scanId was captured)
+      - get:
+          url: "/api/v1/scan/{{ scanId }}"
+          headers:
+            x-api-key: "{{ apiKey }}"
+            x-account-id: "{{ accountID }}"
+          expect:
+            - statusCode: 200
+            - contentType: json
+          think: 2  # 2 second think time before polling
+          if: "{{ scanId }}"
+  
+  # Additional scenario: List scans endpoint
+  - name: "List scans endpoint test"
+    weight: 10
+    flow:
+      - get:
+          url: "/api/v1/scans"
+          qs:
+            accountID: "{{ accountID }}"
+            limit: 10
+          headers:
+            x-api-key: "{{ apiKey }}"
+            x-account-id: "{{ accountID }}"
+          expect:
+            - statusCode: 200
+            - contentType: json
+          think: 3
 
