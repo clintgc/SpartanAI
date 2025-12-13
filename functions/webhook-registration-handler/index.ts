@@ -50,6 +50,27 @@ function validateWebhookUrl(urlString: string): { valid: boolean; error?: string
         // Allow 172.0.0.0-172.15.255.255 and 172.32.0.0-172.255.255.255 (public IPs)
       }
     }
+
+    // SSRF Protection: Block AWS internal endpoints
+    const blockedHosts = [
+      '169.254.169.254', // EC2 metadata service
+      'localhost',
+      '127.0.0.1',
+      '0.0.0.0',
+    ];
+
+    if (blockedHosts.includes(url.hostname)) {
+      return { valid: false, error: 'webhookUrl cannot point to internal AWS endpoints' };
+    }
+
+    // Block AWS service endpoints and internal domains
+    if (url.hostname.endsWith('.amazonaws.com') || 
+        url.hostname.endsWith('.internal') ||
+        url.hostname.includes('169.254') ||
+        url.hostname.endsWith('.compute.internal') ||
+        url.hostname.endsWith('.ec2.internal')) {
+      return { valid: false, error: 'webhookUrl cannot point to AWS internal endpoints' };
+    }
     
     return { valid: true };
   } catch (error) {

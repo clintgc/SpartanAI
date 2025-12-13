@@ -109,12 +109,58 @@ export const handler = async (event: SNSEvent): Promise<void> => {
       // High threat (>89%) - Send SMS + FCM + webhook + log location
       if (topScore > 89) {
         // Send SMS via Twilio
-        if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER) {
+        // Read Twilio credentials from SSM if parameter paths are provided, otherwise use env vars
+        let twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
+        let twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
+        let twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+
+        // If parameter paths are provided, fetch from SSM
+        if (process.env.TWILIO_ACCOUNT_SID_PARAM) {
+          try {
+            const sidParam = await ssmClient.send(
+              new GetParameterCommand({
+                Name: process.env.TWILIO_ACCOUNT_SID_PARAM,
+                WithDecryption: true,
+              })
+            );
+            twilioAccountSid = sidParam.Parameter?.Value;
+          } catch (error) {
+            console.error('Failed to get Twilio Account SID from SSM:', error);
+          }
+        }
+        if (process.env.TWILIO_AUTH_TOKEN_PARAM) {
+          try {
+            const tokenParam = await ssmClient.send(
+              new GetParameterCommand({
+                Name: process.env.TWILIO_AUTH_TOKEN_PARAM,
+                WithDecryption: true,
+              })
+            );
+            twilioAuthToken = tokenParam.Parameter?.Value;
+          } catch (error) {
+            console.error('Failed to get Twilio Auth Token from SSM:', error);
+          }
+        }
+        if (process.env.TWILIO_PHONE_NUMBER_PARAM) {
+          try {
+            const phoneParam = await ssmClient.send(
+              new GetParameterCommand({
+                Name: process.env.TWILIO_PHONE_NUMBER_PARAM,
+                WithDecryption: true,
+              })
+            );
+            twilioPhoneNumber = phoneParam.Parameter?.Value;
+          } catch (error) {
+            console.error('Failed to get Twilio Phone Number from SSM:', error);
+          }
+        }
+
+        if (twilioAccountSid && twilioAuthToken && twilioPhoneNumber) {
           try {
             const twilioClient = new TwilioClient({
-              accountSid: process.env.TWILIO_ACCOUNT_SID,
-              authToken: process.env.TWILIO_AUTH_TOKEN,
-              phoneNumber: process.env.TWILIO_PHONE_NUMBER,
+              accountSid: twilioAccountSid,
+              authToken: twilioAuthToken,
+              phoneNumber: twilioPhoneNumber,
             });
 
             // Get user phone from account profile (in production, fetch from account DB)

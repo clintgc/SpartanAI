@@ -24,6 +24,21 @@ export const handler = async (
       };
     }
 
+    // Get authenticated accountID from header or API context
+    const authenticatedAccountID = event.headers['x-account-id'] || 
+                                    event.requestContext.identity?.accountId;
+
+    if (!authenticatedAccountID) {
+      return {
+        statusCode: 401,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ error: 'Unauthorized', message: 'accountID is required' }),
+      };
+    }
+
     const result = await docClient.send(
       new GetCommand({
         TableName: process.env.SCANS_TABLE_NAME!,
@@ -39,6 +54,21 @@ export const handler = async (
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ error: 'Scan not found' }),
+      };
+    }
+
+    // Authorization check: Verify scan belongs to authenticated account
+    if (result.Item.accountID !== authenticatedAccountID) {
+      return {
+        statusCode: 403,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          error: 'Forbidden', 
+          message: 'You do not have access to this scan' 
+        }),
       };
     }
 
