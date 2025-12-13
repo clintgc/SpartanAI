@@ -170,9 +170,14 @@ export const handler = async (
       const swaggerVersions = extractVersions(swaggerListResponse.Contents);
 
       // Delete older versions (keep only the last MAX_VERSIONS_TO_KEEP)
+      // When we have >= MAX_VERSIONS_TO_KEEP versions, delete the oldest ones
+      // This ensures we never exceed MAX_VERSIONS_TO_KEEP after uploading the new version
       const deleteOldVersions = async (versions: Array<{ key: string; date: string }>) => {
         if (versions.length >= MAX_VERSIONS_TO_KEEP) {
-          const versionsToDelete = versions.slice(MAX_VERSIONS_TO_KEEP);
+          // Calculate how many to delete: if we have exactly MAX_VERSIONS_TO_KEEP, delete 1
+          // If we have more, delete all beyond MAX_VERSIONS_TO_KEEP - 1 (to leave room for new one)
+          const versionsToKeep = MAX_VERSIONS_TO_KEEP - 1; // Keep one less to make room for new upload
+          const versionsToDelete = versions.slice(versionsToKeep);
           for (const version of versionsToDelete) {
             try {
               const deleteCommand = new DeleteObjectCommand({
