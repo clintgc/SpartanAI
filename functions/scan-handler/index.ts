@@ -162,12 +162,31 @@ export const handler = async (
 
     // Convert image to buffer if base64
     // IMPORTANT: Image is never stored - only passed directly to Captis API
-    let imageBuffer: Buffer;
+    let imageBuffer: Buffer | string;
+    
+    // Validate image size before processing (max 10MB)
+    const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
+    
     if (typeof request.image === 'string' && !request.image.startsWith('http')) {
+      // Base64 encoded image - validate size
+      const imageSize = Buffer.byteLength(request.image, 'base64');
+      if (imageSize > MAX_IMAGE_SIZE) {
+        return {
+          statusCode: 400,
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            error: 'Image size exceeds limit',
+            message: `Image size (${imageSize} bytes) exceeds maximum allowed size of ${MAX_IMAGE_SIZE} bytes`,
+          }),
+        };
+      }
       imageBuffer = Buffer.from(request.image, 'base64');
     } else if (typeof request.image === 'string') {
       // URL - will be handled by Captis client
-      imageBuffer = request.image as any;
+      imageBuffer = request.image;
     } else {
       return {
         statusCode: 400,
@@ -197,8 +216,13 @@ export const handler = async (
 
     // Audit log: Image forwarded to Captis, now discarded from memory
     console.log(`[AUDIT] Image forwarded to Captis for scan ${scanId}. Image buffer discarded from memory.`);
-    // Clear reference (though GC will handle it)
-    imageBuffer = null as any;
+    
+    // Explicitly clear image buffer to prevent memory leaks
+    if (Buffer.isBuffer(imageBuffer)) {
+      // Overwrite buffer with zeros for security and memory cleanup
+      imageBuffer.fill(0);
+    }
+    imageBuffer = undefined as any;
 
     // Store scan record in DynamoDB
     const createdAt = new Date().toISOString();
@@ -221,8 +245,37 @@ export const handler = async (
       })
     );
 
-    // Increment quota
-    await dbService.incrementQuota(accountID, year);
+    // Increment quota with atomic conditional update to prevent race conditions
+    try {
+      await docClient.send(
+        new UpdateCommand({
+          TableName: process.env.QUOTAS_TABLE_NAME!,
+          Key: { accountID, year },
+          UpdateExpression: 'ADD scansUsed :inc SET scansLimit = :limit',
+          ConditionExpression: 'scansUsed < :limit', // Prevent quota overrun
+          ExpressionAttributeValues: {
+            ':inc': 1,
+            ':limit': scansLimit,
+          },
+        })
+      );
+    } catch (error: any) {
+      // If condition check fails, quota was exceeded
+      if (error.name === 'ConditionalCheckFailedException') {
+        return {
+          statusCode: 429,
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            error: 'Quota exceeded',
+            message: `Account has reached the annual limit of ${scansLimit} scans`,
+          }),
+        };
+      }
+      throw error;
+    }
 
     // If timed out, trigger polling via EventBridge
     if (captisResponse.timedOutFlag) {

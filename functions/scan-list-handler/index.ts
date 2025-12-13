@@ -11,19 +11,60 @@ export const handler = async (
   console.log('Scan list handler invoked', JSON.stringify(event, null, 2));
 
   try {
-    const accountID = event.queryStringParameters?.accountID;
-    const limit = parseInt(event.queryStringParameters?.limit || '20', 10);
-    const nextToken = event.queryStringParameters?.nextToken;
+    // Get authenticated accountID from header or API context
+    const authenticatedAccountID = event.headers['x-account-id'] || 
+                                    event.requestContext.identity?.accountId;
 
-    if (!accountID) {
+    if (!authenticatedAccountID) {
       return {
-        statusCode: 400,
+        statusCode: 401,
         headers: {
           'Access-Control-Allow-Origin': '*',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ error: 'accountID query parameter is required' }),
+        body: JSON.stringify({ error: 'Unauthorized', message: 'accountID is required' }),
       };
+    }
+
+    // Get requested accountID from query parameter
+    const requestedAccountID = event.queryStringParameters?.accountID;
+
+    // Authorization check: Verify requested accountID matches authenticated accountID
+    if (!requestedAccountID || requestedAccountID !== authenticatedAccountID) {
+      return {
+        statusCode: 403,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          error: 'Forbidden', 
+          message: 'You can only access scans for your own account' 
+        }),
+      };
+    }
+
+    const limit = parseInt(event.queryStringParameters?.limit || '20', 10);
+    const nextToken = event.queryStringParameters?.nextToken;
+
+    // Validate limit range (1-100)
+    const validatedLimit = Math.min(Math.max(limit, 1), 100);
+
+    // Parse and validate nextToken
+    let exclusiveStartKey: any = undefined;
+    if (nextToken) {
+      try {
+        exclusiveStartKey = JSON.parse(Buffer.from(nextToken, 'base64').toString());
+      } catch (error) {
+        return {
+          statusCode: 400,
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ error: 'Invalid nextToken format' }),
+        };
+      }
     }
 
     const result = await docClient.send(
@@ -32,11 +73,11 @@ export const handler = async (
         IndexName: 'accountID-index',
         KeyConditionExpression: 'accountID = :accountID',
         ExpressionAttributeValues: {
-          ':accountID': accountID,
+          ':accountID': authenticatedAccountID,
         },
-        Limit: limit,
+        Limit: validatedLimit,
         ScanIndexForward: false, // Most recent first
-        ...(nextToken && { ExclusiveStartKey: JSON.parse(Buffer.from(nextToken, 'base64').toString()) }),
+        ...(exclusiveStartKey && { ExclusiveStartKey: exclusiveStartKey }),
       })
     );
 

@@ -115,5 +115,7 @@ export interface AccountProfile {
   createdAt: string;
   updatedAt: string;
   unsubscribeToken?: string; // For email unsubscribe links
+  emailOptOut?: boolean; // GDPR compliance: User has opted out of marketing emails
+  emailOptOutAt?: string; // Timestamp when user opted out
 }
 

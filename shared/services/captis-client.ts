@@ -26,6 +26,8 @@ export class CaptisClient {
   private baseUrl: string;
   private accessKey: string;
   private defaultTimeout: number;
+  private redirectCount: number = 0;
+  private readonly MAX_REDIRECTS: number = 5;
 
   constructor(config: CaptisClientConfig) {
     this.baseUrl = config.baseUrl || 'https://asi-api.solveacrime.com';
@@ -110,11 +112,15 @@ export class CaptisClient {
       if (axios.isAxiosError(error)) {
         const axiosError = error as AxiosError;
         
-        // Handle 307 redirect
+        // Handle 307 redirect with redirect limit to prevent infinite loops
         if (axiosError.response?.status === 307) {
+          if (this.redirectCount >= this.MAX_REDIRECTS) {
+            throw new Error(`Maximum redirect limit (${this.MAX_REDIRECTS}) exceeded`);
+          }
           const location = axiosError.response.headers.location;
           if (location) {
             // Update base URL and retry
+            this.redirectCount++;
             this.baseUrl = new URL(location, this.baseUrl).origin;
             this.client.defaults.baseURL = this.baseUrl;
             return this.resolve(options);
@@ -156,10 +162,14 @@ export class CaptisClient {
       if (axios.isAxiosError(error)) {
         const axiosError = error as AxiosError;
         
-        // Handle 307 redirect
+        // Handle 307 redirect with redirect limit
         if (axiosError.response?.status === 307) {
+          if (this.redirectCount >= this.MAX_REDIRECTS) {
+            throw new Error(`Maximum redirect limit (${this.MAX_REDIRECTS}) exceeded`);
+          }
           const location = axiosError.response.headers.location;
           if (location) {
+            this.redirectCount++;
             this.baseUrl = new URL(location, this.baseUrl).origin;
             this.client.defaults.baseURL = this.baseUrl;
             return this.pollScan(scanId);
