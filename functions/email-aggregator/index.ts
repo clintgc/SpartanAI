@@ -139,6 +139,15 @@ export const handler = async (event: EventBridgeEvent<'ScheduledEvent', {}>): Pr
         }
       }
 
+      // Log deduplication statistics
+      const dedupStats = {
+        accountID,
+        totalMatches: result.Items?.length || 0,
+        deduplicatedMatches: matches.size,
+        duplicatesRemoved: (result.Items?.length || 0) - matches.size,
+      };
+      console.log(`Dedup results: ${JSON.stringify(dedupStats)}`);
+      
       console.log(`Account ${accountID}: Found ${result.Items?.length || 0} matches, deduplicated to ${matches.size}`);
     }
 

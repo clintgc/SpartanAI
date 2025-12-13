@@ -23,12 +23,32 @@ function validateWebhookUrl(urlString: string): { valid: boolean; error?: string
     }
     
     // Reject localhost and private IPs (security)
+    // RFC 1918 private IP ranges:
+    // - 10.0.0.0/8 (10.0.0.0 to 10.255.255.255)
+    // - 172.16.0.0/12 (172.16.0.0 to 172.31.255.255) - NOT all 172.x.x.x
+    // - 192.168.0.0/16 (192.168.0.0 to 192.168.255.255)
+    // - 127.0.0.0/8 (127.0.0.0 to 127.255.255.255)
     if (url.hostname === 'localhost' || 
         url.hostname.startsWith('127.') || 
         url.hostname.startsWith('192.168.') ||
-        url.hostname.startsWith('10.') ||
-        url.hostname.startsWith('172.')) {
+        url.hostname.startsWith('10.')) {
       return { valid: false, error: 'webhookUrl cannot point to localhost or private IP addresses' };
+    }
+    
+    // Validate 172.16.0.0/12 range specifically (not all 172.x.x.x)
+    // Check if hostname is an IP address in the 172.x.x.x range
+    if (url.hostname.startsWith('172.')) {
+      // Parse IP address to check if it's in the private range 172.16.0.0/12
+      const ipParts = url.hostname.split('.');
+      if (ipParts.length === 4) {
+        const secondOctet = parseInt(ipParts[1], 10);
+        // Only block if second octet is between 16 and 31 (inclusive)
+        // This covers 172.16.0.0 to 172.31.255.255
+        if (!isNaN(secondOctet) && secondOctet >= 16 && secondOctet <= 31) {
+          return { valid: false, error: 'webhookUrl cannot point to private IP addresses (172.16.0.0/12)' };
+        }
+        // Allow 172.0.0.0-172.15.255.255 and 172.32.0.0-172.255.255.255 (public IPs)
+      }
     }
     
     return { valid: true };
@@ -94,10 +114,11 @@ export const handler = async (
       };
     }
 
-    // Get accountID from request body (preferred), header, or API key context
-    const accountID = requestAccountID || 
-                      event.headers['x-account-id'] || 
-                      event.requestContext.identity?.accountId;
+    // Get accountID from authenticated header (preferred), API key context, or request body (fallback)
+    // Security: Trust authenticated sources first to prevent accountID spoofing
+    const accountID = event.headers['x-account-id'] || 
+                      event.requestContext.identity?.accountId ||
+                      requestAccountID;
 
     if (!accountID || typeof accountID !== 'string') {
       return {
