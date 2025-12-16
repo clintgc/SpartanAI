@@ -3,9 +3,26 @@ module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   
-  // Transform TypeScript files
+  // Transform TypeScript and JavaScript files
   transform: {
-    '^.+\\.ts$': 'ts-jest',
+    '^.+\\.ts$': ['ts-jest', {
+      tsconfig: {
+        compilerOptions: {
+          target: 'es2020',
+          module: 'commonjs',
+          strict: true,
+          moduleResolution: 'node',
+          rootDir: '.',
+          esModuleInterop: true,
+          skipLibCheck: true,
+          forceConsistentCasingInFileNames: true,
+          paths: {
+            '*': ['shared/*', 'functions/*', 'infrastructure/*', 'spartan-ai/infrastructure/lib/*'],
+          },
+        },
+      },
+    }],
+    '^.+\\.js$': 'ts-jest',
   },
   
   // Module file extensions
@@ -18,11 +35,12 @@ module.exports = {
   ],
   
   // Fix haste module collisions from duplicate functions/ and SpartanAI/functions/
-  // Ignore SpartanAI directory to prevent duplicate package.json collisions
+  // Ignore SpartanAI and spartan-ai directories to prevent duplicate package.json collisions
   testPathIgnorePatterns: [
     '/node_modules/',
     '/SpartanAI/',
     '/spartan-ai/',
+    '/dist/',
     '/coverage/',
   ],
   
@@ -32,6 +50,11 @@ module.exports = {
     '^SpartanAI/(.*)$': '<rootDir>/functions/$1',
     // Map shared module
     '^spartan-ai-shared$': '<rootDir>/shared',
+    // Map infrastructure/lib/* to spartan-ai/infrastructure/lib/* for TS2307 module not found
+    // Handles imports like '../../infrastructure/lib/cost-monitoring'
+    '^.*infrastructure/lib/(.*)$': '<rootDir>/spartan-ai/infrastructure/lib/$1',
+    // Also handle direct infrastructure/lib imports
+    '^infrastructure/lib/(.*)$': '<rootDir>/spartan-ai/infrastructure/lib/$1',
   },
   
   // Collect coverage from source files (excluding duplicates)
@@ -46,22 +69,6 @@ module.exports = {
     '!**/spartan-ai/**',
   ],
   
-  // TypeScript configuration
-  globals: {
-    'ts-jest': {
-      // Use root tsconfig.json if it exists, otherwise use inline config
-      tsconfig: {
-        target: 'ES2020',
-        module: 'commonjs',
-        lib: ['es2020'],
-        strict: true,
-        esModuleInterop: true,
-        skipLibCheck: true,
-        forceConsistentCasingInFileNames: true,
-      },
-    },
-  },
-  
   // Setup files
   setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
   
@@ -70,4 +77,10 @@ module.exports = {
   
   // Module directories
   moduleDirectories: ['node_modules', '<rootDir>'],
+  
+  // Clear mocks between tests
+  clearMocks: true,
+  
+  // Restore mocks after each test
+  restoreMocks: true,
 };
