@@ -203,19 +203,31 @@ describe('Alert Handler FCM Integration', () => {
   it('should handle FCM client initialization failure gracefully', async () => {
     const snsEvent = createMockSnsEvent(80);
 
+    // Reset module-level FCM client state by clearing the cache
+    // The handler uses module-level variables that persist between tests
+    jest.resetModules();
+    const handlerModule = require('../../functions/alert-handler');
+    
     // Mock invalid FCM config
     process.env.FCM_SERVER_KEY = 'invalid-json';
 
-    const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
+    // Handler logs errors for FCM initialization failures, not warnings
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+    const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+    
+    const handler = handlerModule.handler;
 
     await handler(snsEvent);
 
     // Verify warning about FCM not being initialized
-    expect(consoleSpy).toHaveBeenCalledWith(
+    // Handler logs "FCM client not initialized, skipping FCM notification" when fcmClient is null
+    // This happens after the initialization error is logged
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
       expect.stringContaining('FCM client not initialized')
     );
 
-    consoleSpy.mockRestore();
+    consoleErrorSpy.mockRestore();
+    consoleWarnSpy.mockRestore();
   });
 
   it('should include all required data fields in FCM notification', async () => {

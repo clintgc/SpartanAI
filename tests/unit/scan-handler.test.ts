@@ -58,9 +58,8 @@ jest.mock('@aws-sdk/client-eventbridge', () => {
   };
 });
 
-jest.mock('../../shared/services/dynamodb-service');
+// Don't mock DynamoDbService - we'll mock the underlying DynamoDBDocumentClient instead
 jest.mock('../../shared/services/captis-client');
-jest.mock('@aws-sdk/client-dynamodb');
 
 // Import handler after mocks are set up
 import { handler } from '../../functions/scan-handler';
@@ -124,21 +123,19 @@ describe('Scan Handler', () => {
   it('should validate quota and return 429 when exceeded', async () => {
     // Mock quota exceeded - handler uses dbService.getQuota(accountID, year)
     // The service uses DynamoDBDocumentClient.send() internally
-    const { GetCommand } = require('@aws-sdk/lib-dynamodb');
     const { CaptisClient } = require('../../shared/services/captis-client');
     
     const currentYear = new Date().getFullYear().toString();
     const recentDate = new Date().toISOString();
     
-    // Mock DynamoDB DocumentClient to return quota that exceeds limit
-    // Handler checks: if (scansUsed >= SCANS_LIMIT) where SCANS_LIMIT = 14400
-    // Table name will be 'test-quotas' (TABLE_PREFIX='test')
-    // GetCommand has input property with TableName
+    // Track call order to return quota first, then consent
+    let callIndex = 0;
     mockDocClientSend.mockImplementation((command) => {
-      // GetCommand structure: command.input.TableName
-      const tableName = command.input?.TableName || command.input?.tableName;
-      const isGetCommand = command.constructor.name === 'GetCommand' || command.constructor.name.includes('Get');
+      callIndex++;
+      const tableName = command.input?.TableName;
+      const isGetCommand = command.constructor.name === 'GetCommand';
       
+      // First call should be for quotas table (getQuota)
       if (isGetCommand && tableName && tableName.includes('quotas')) {
         return Promise.resolve({
           Item: {
@@ -150,11 +147,15 @@ describe('Scan Handler', () => {
           },
         });
       }
-      // Return empty Item for other GetCommands (consent, etc.)
+      // Second call might be for consent table (getConsent) - return null
+      if (isGetCommand && tableName && tableName.includes('consent')) {
+        return Promise.resolve({ Item: null });
+      }
+      // Return null Item for other GetCommands
       if (isGetCommand) {
         return Promise.resolve({ Item: null });
       }
-      // Return empty for other commands
+      // Return empty for other commands (PutCommand, UpdateCommand, etc.)
       return Promise.resolve({});
     });
     
@@ -169,40 +170,55 @@ describe('Scan Handler', () => {
     });
 
     const response = await handler(mockEvent);
+    
+    // Verify mock was called
+    expect(mockDocClientSend).toHaveBeenCalled();
     expect(response.statusCode).toBe(429);
   });
 
   it('should check consent and return 403 if opted out', async () => {
     // Mock consent opted out - handler uses dbService.getQuota() and getConsent()
-    const { GetCommand } = require('@aws-sdk/lib-dynamodb');
     const currentYear = new Date().getFullYear().toString();
     
-    // Mock DynamoDB DocumentClient to return quota (under limit) and consent (opted out)
+    // Track call order: first quota, then consent
+    let callIndex = 0;
     mockDocClientSend.mockImplementation((command) => {
-      if (command.constructor.name === 'GetCommand') {
-        if (command.input?.TableName?.includes('quotas')) {
-          return Promise.resolve({
-            Item: {
-              scansUsed: 0,
-              scansLimit: 14400,
-              accountID: '550e8400-e29b-41d4-a716-446655440000',
-              year: currentYear,
-            },
-          });
-        }
-        if (command.input?.TableName?.includes('consent')) {
-          return Promise.resolve({
-            Item: {
-              accountID: '550e8400-e29b-41d4-a716-446655440000',
-              consentStatus: false,
-            },
-          });
-        }
+      callIndex++;
+      const tableName = command.input?.TableName;
+      const isGetCommand = command.constructor.name === 'GetCommand';
+      
+      // First call: getQuota (quotas table) - under limit
+      if (isGetCommand && tableName && tableName.includes('quotas')) {
+        return Promise.resolve({
+          Item: {
+            scansUsed: 0,
+            scansLimit: 14400,
+            accountID: '550e8400-e29b-41d4-a716-446655440000',
+            year: currentYear,
+          },
+        });
       }
+      // Second call: getConsent (consent table) - opted out
+      if (isGetCommand && tableName && tableName.includes('consent')) {
+        return Promise.resolve({
+          Item: {
+            accountID: '550e8400-e29b-41d4-a716-446655440000',
+            consentStatus: false, // Opted out
+          },
+        });
+      }
+      // Return null for other GetCommands
+      if (isGetCommand) {
+        return Promise.resolve({ Item: null });
+      }
+      // Return empty for other commands
       return Promise.resolve({});
     });
 
     const response = await handler(mockEvent);
+    
+    // Verify mock was called at least twice (quota + consent)
+    expect(mockDocClientSend).toHaveBeenCalledTimes(2);
     expect(response.statusCode).toBe(403);
   });
 
