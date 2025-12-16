@@ -12,10 +12,6 @@ module.exports = {
           module: 'commonjs',
           strict: true,
           moduleResolution: 'node',
-          rootDir: '.',
-          esModuleInterop: true,
-          skipLibCheck: true,
-          forceConsistentCasingInFileNames: true,
           allowJs: true,
           paths: {
             'infrastructure/lib/*': ['spartan-ai/infrastructure/lib/*'],
@@ -40,10 +36,9 @@ module.exports = {
   // Module file extensions
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
   
-  // Test file patterns
+  // Test file patterns - focus on tests/ directory
   testMatch: [
-    '**/__tests__/**/*.ts',
-    '**/?(*.)+(spec|test).ts',
+    '**/tests/**/*.test.ts',
   ],
   
   // Fix haste module collisions from duplicate functions/ and SpartanAI/functions/
@@ -52,6 +47,8 @@ module.exports = {
     '/SpartanAI/',
     '/spartan-ai/',
     '/node_modules/',
+    '/dist/',
+    '/coverage/',
   ],
   
   // Module name mapper to handle collisions and remap duplicates
@@ -60,15 +57,15 @@ module.exports = {
     '^SpartanAI/(.*)$': '<rootDir>/functions/$1',
     // Map infrastructure/lib/* to spartan-ai/infrastructure/lib/* for TS2307 module not found
     '^infrastructure/lib/(.*)$': '<rootDir>/spartan-ai/infrastructure/lib/$1',
-    // Map shared module
-    '^spartan-ai-shared$': '<rootDir>/shared',
   },
   
   // Collect coverage from source files (excluding duplicates)
   collectCoverageFrom: [
     'functions/**/*.ts',
     'shared/**/*.ts',
-    '!SpartanAI/**',
+    'infrastructure/**/*.ts',
+    '!**/SpartanAI/**',
+    '!**/spartan-ai/**',
   ],
   
   // Setup files
@@ -83,6 +80,9 @@ module.exports = {
   // Worker memory limit to prevent child process exceptions
   workerIdleMemoryLimit: '512MB',
   
+  // Max workers to prevent memory issues and child process exceptions
+  maxWorkers: '50%',
+  
   // Don't bail on first failure - run all tests
   bail: false,
   
@@ -91,7 +91,4 @@ module.exports = {
   
   // Restore mocks after each test
   restoreMocks: true,
-  
-  // Max workers to prevent memory issues
-  maxWorkers: '50%',
 };
