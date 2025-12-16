@@ -4,31 +4,28 @@ module.exports = {
   testEnvironment: 'node',
   
   // Transform TypeScript and JavaScript files (including .tsx, .jsx)
+  // tsconfig is a direct object (no compilerOptions wrapper) to fix TS5023
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
       tsconfig: {
-        compilerOptions: {
-          target: 'es2020',
-          module: 'commonjs',
-          strict: true,
-          moduleResolution: 'node',
-          allowJs: true,
-          paths: {
-            'infrastructure/lib/*': ['spartan-ai/infrastructure/lib/*'],
-            '*': ['shared/*', 'functions/*'],
-          },
+        target: 'es2020',
+        module: 'commonjs',
+        strict: true,
+        moduleResolution: 'node',
+        allowJs: true,
+        paths: {
+          'infrastructure/lib/*': ['spartan-ai/infrastructure/lib/*'],
+          '*': ['shared/*', 'functions/*'],
         },
       },
     }],
     '^.+\\.jsx?$': ['ts-jest', {
       tsconfig: {
-        compilerOptions: {
-          target: 'es2020',
-          module: 'commonjs',
-          allowJs: true,
-          esModuleInterop: true,
-          skipLibCheck: true,
-        },
+        target: 'es2020',
+        module: 'commonjs',
+        allowJs: true,
+        esModuleInterop: true,
+        skipLibCheck: true,
       },
     }],
   },
@@ -36,13 +33,13 @@ module.exports = {
   // Module file extensions
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
   
-  // Test file patterns - focus on tests/ directory
+  // Test file patterns - focus on tests/ directory for better discovery
   testMatch: [
     '**/tests/**/*.test.ts',
   ],
   
   // Fix haste module collisions from duplicate functions/ and SpartanAI/functions/
-  // Ignore SpartanAI and spartan-ai directories to prevent duplicate package.json collisions
+  // Stronger ignore patterns to prevent duplicate package.json collisions
   testPathIgnorePatterns: [
     '/SpartanAI/',
     '/spartan-ai/',
