@@ -1,40 +1,53 @@
 import { EventBridgeEvent } from 'aws-lambda';
-import { handler } from '../../functions/email-aggregator';
 import sgMail from '@sendgrid/mail';
 
-// Mock dependencies
+// Mock dependencies before importing handler
+// Must mock before importing since docClient is created at module load time
+const mockDocClientSend = jest.fn();
+
+jest.mock('@aws-sdk/lib-dynamodb', () => {
+  const actual = jest.requireActual('@aws-sdk/lib-dynamodb');
+  return {
+    ...actual,
+    DynamoDBDocumentClient: {
+      ...actual.DynamoDBDocumentClient,
+      from: jest.fn(() => ({
+        send: mockDocClientSend,
+      })),
+    },
+  };
+});
+
 jest.mock('@sendgrid/mail');
 jest.mock('../../shared/services/dynamodb-service');
-jest.mock('@aws-sdk/lib-dynamodb');
 jest.mock('@aws-sdk/client-dynamodb');
+
+// Import handler after mocks are set up
+import { handler } from '../../functions/email-aggregator';
 
 describe('Email Aggregator', () => {
   const mockSend = jest.fn();
-  const mockScan = jest.fn();
-  const mockQuery = jest.fn();
+  const mockScanResults: any[] = [];
+  const mockQueryResults: any[] = [];
 
   beforeEach(() => {
     jest.clearAllMocks();
-    jest.resetModules();
+    mockScanResults.length = 0;
+    mockQueryResults.length = 0;
 
     // Mock SendGrid
     (sgMail.setApiKey as jest.Mock) = jest.fn();
     (sgMail.send as jest.Mock) = mockSend.mockResolvedValue([{ statusCode: 202 }]);
 
-    // Mock DynamoDB DocumentClient
-    const { DynamoDBDocumentClient } = require('@aws-sdk/lib-dynamodb');
-    const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-    
-    DynamoDBDocumentClient.from = jest.fn().mockReturnValue({
-      send: jest.fn((command) => {
-        if (command.constructor.name === 'ScanCommand') {
-          return mockScan();
-        }
-        if (command.constructor.name === 'QueryCommand') {
-          return mockQuery();
-        }
-        return Promise.resolve({});
-      }),
+    // Setup DynamoDB DocumentClient mock
+    mockDocClientSend.mockImplementation((command) => {
+      if (command.constructor.name === 'ScanCommand') {
+        return Promise.resolve(mockScanResults.shift() || { Items: [] });
+      }
+      if (command.constructor.name === 'QueryCommand') {
+        return Promise.resolve(mockQueryResults.shift() || { Items: [] });
+      }
+      return Promise.resolve({});
     });
 
     // Set environment variables
@@ -71,7 +84,7 @@ describe('Email Aggregator', () => {
     const event = createMockEvent();
 
     // Mock scan to get accountIDs
-    mockScan.mockResolvedValueOnce({
+    mockScanResults.push({
       Items: [
         { accountID: 'account-001' },
         { accountID: 'account-001' },
@@ -80,41 +93,42 @@ describe('Email Aggregator', () => {
     });
 
     // Mock query for account-001 (with duplicates)
-    mockQuery
-      .mockResolvedValueOnce({
-        Items: [
-          {
-            scanId: 'scan-1',
-            accountID: 'account-001',
-            topScore: 65,
-            createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-            viewMatchesUrl: 'https://example.com/scan-1',
-            matches: [{ subject: { id: 'subject-1', name: 'John Doe' } }],
-            biometrics: [{ age: 30, femaleScore: 0.2, x: 100, y: 200 }],
-          },
-          {
-            scanId: 'scan-2',
-            accountID: 'account-001',
-            topScore: 70, // Higher score, should be kept
-            createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-            viewMatchesUrl: 'https://example.com/scan-2',
-            matches: [{ subject: { id: 'subject-1', name: 'John Doe' } }], // Same subject
-            biometrics: [{ age: 30, femaleScore: 0.2, x: 100, y: 200 }], // Same biometrics
-          },
-          {
-            scanId: 'scan-3',
-            accountID: 'account-001',
-            topScore: 60,
-            createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-            viewMatchesUrl: 'https://example.com/scan-3',
-            matches: [{ subject: { id: 'subject-2', name: 'Jane Smith' } }], // Different subject
-            biometrics: [{ age: 25, femaleScore: 0.8, x: 150, y: 250 }],
-          },
-        ],
-      })
-      .mockResolvedValueOnce({
-        Items: [], // account-002 has no matches
-      });
+    mockQueryResults.push({
+      Items: [
+        {
+          scanId: 'scan-1',
+          accountID: 'account-001',
+          topScore: 65,
+          createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+          viewMatchesUrl: 'https://example.com/scan-1',
+          matches: [{ subject: { id: 'subject-1', name: 'John Doe' } }],
+          biometrics: [{ age: 30, femaleScore: 0.2, x: 100, y: 200 }],
+        },
+        {
+          scanId: 'scan-2',
+          accountID: 'account-001',
+          topScore: 70, // Higher score, should be kept
+          createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+          viewMatchesUrl: 'https://example.com/scan-2',
+          matches: [{ subject: { id: 'subject-1', name: 'John Doe' } }], // Same subject
+          biometrics: [{ age: 30, femaleScore: 0.2, x: 100, y: 200 }], // Same biometrics
+        },
+        {
+          scanId: 'scan-3',
+          accountID: 'account-001',
+          topScore: 60,
+          createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+          viewMatchesUrl: 'https://example.com/scan-3',
+          matches: [{ subject: { id: 'subject-2', name: 'Jane Smith' } }], // Different subject
+          biometrics: [{ age: 25, femaleScore: 0.8, x: 150, y: 250 }],
+        },
+      ],
+    });
+    
+    // Mock query for account-002 (no matches)
+    mockQueryResults.push({
+      Items: [], // account-002 has no matches
+    });
 
     // Mock DynamoDbService
     const { DynamoDbService } = require('../../shared/services/dynamodb-service');
@@ -146,11 +160,11 @@ describe('Email Aggregator', () => {
   it('should handle accounts with no matches gracefully', async () => {
     const event = createMockEvent();
 
-    mockScan.mockResolvedValueOnce({
+    mockScanResults.push({
       Items: [{ accountID: 'account-001' }],
     });
 
-    mockQuery.mockResolvedValueOnce({
+    mockQueryResults.push({
       Items: [], // No matches
     });
 
@@ -163,11 +177,11 @@ describe('Email Aggregator', () => {
   it('should skip accounts without email in profile', async () => {
     const event = createMockEvent();
 
-    mockScan.mockResolvedValueOnce({
+    mockScanResults.push({
       Items: [{ accountID: 'account-001' }],
     });
 
-    mockQuery.mockResolvedValueOnce({
+    mockQueryResults.push({
       Items: [
         {
           scanId: 'scan-1',
@@ -205,11 +219,11 @@ describe('Email Aggregator', () => {
   it('should generate unsubscribe link with token', async () => {
     const event = createMockEvent();
 
-    mockScan.mockResolvedValueOnce({
+    mockScanResults.push({
       Items: [{ accountID: 'account-001' }],
     });
 
-    mockQuery.mockResolvedValueOnce({
+    mockQueryResults.push({
       Items: [
         {
           scanId: 'scan-1',
@@ -243,11 +257,11 @@ describe('Email Aggregator', () => {
   it('should create unsubscribe token if not exists', async () => {
     const event = createMockEvent();
 
-    mockScan.mockResolvedValueOnce({
+    mockScanResults.push({
       Items: [{ accountID: 'account-001' }],
     });
 
-    mockQuery.mockResolvedValueOnce({
+    mockQueryResults.push({
       Items: [
         {
           scanId: 'scan-1',
@@ -291,11 +305,11 @@ describe('Email Aggregator', () => {
   it('should include all required match details in email', async () => {
     const event = createMockEvent();
 
-    mockScan.mockResolvedValueOnce({
+    mockScanResults.push({
       Items: [{ accountID: 'account-001' }],
     });
 
-    mockQuery.mockResolvedValueOnce({
+    mockQueryResults.push({
       Items: [
         {
           scanId: 'scan-1',
