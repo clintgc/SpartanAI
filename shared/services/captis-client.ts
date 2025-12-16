@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
+import axiosRetry from 'axios-retry';
 import { CaptisResolveResponse } from '../models';
 
 export interface CaptisClientConfig {
@@ -39,6 +40,23 @@ export class CaptisClient {
       timeout: this.defaultTimeout,
       headers: {
         'Content-Type': 'application/json',
+      },
+    });
+
+    // Configure axios-retry for automatic retry logic with exponential backoff
+    axiosRetry(this.client, {
+      retries: 3,
+      retryDelay: axiosRetry.exponentialDelay,
+      retryCondition: (error) => {
+        // Retry on network errors, idempotent request errors, and 5xx server errors
+        return (
+          axiosRetry.isNetworkOrIdempotentRequestError(error) ||
+          (error.response?.status !== undefined && error.response.status >= 500) ||
+          error.response?.status === 429 // Rate limit
+        );
+      },
+      onRetry: (retryCount, error, requestConfig) => {
+        console.log(`[CaptisClient] Retry attempt ${retryCount} for ${requestConfig.url}: ${error.message}`);
       },
     });
   }

@@ -8,6 +8,9 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { CloudWatchClient, PutMetricDataCommand } from '@aws-sdk/client-cloudwatch';
 import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
 import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
+import { ScanRequestSchema, safeValidateRequest, formatValidationError } from '../../shared/utils/validation';
+import { ZodError } from 'zod';
+import axios, { AxiosError } from 'axios';
 import 'source-map-support/register';
 
 const docClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -19,41 +22,202 @@ const dbService = new DynamoDbService(process.env.TABLE_PREFIX || 'spartan-ai');
 // Cache for SSM parameter values
 let captisAccessKeyCache: string | null = null;
 
-export const handler = async (
-  event: APIGatewayProxyEvent
-): Promise<APIGatewayProxyResult> => {
-  console.log('Scan handler invoked', JSON.stringify(event, null, 2));
+// Constants
+const SCANS_LIMIT = 14400; // Annual quota per account
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
+const INITIAL_RESPONSE_TIMEOUT = 5000; // 5 seconds for initial response
+const MAX_POLL_ATTEMPTS = 24; // Max 24 attempts for 120s total (5s initial, up to 10s)
+const INITIAL_POLL_DELAY = 5000; // 5 seconds
+const MAX_POLL_DELAY = 10000; // 10 seconds max delay
 
-  try {
-    // Parse request body
-    if (!event.body) {
+// CORS headers
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Captis-Access-Key,X-Account-ID',
+  'Access-Control-Allow-Methods': 'POST,OPTIONS',
+  'Content-Type': 'application/json',
+};
+
+/**
+ * Structured logging helper
+ */
+function log(level: 'info' | 'warn' | 'error', message: string, data?: Record<string, any>) {
+  const logEntry = {
+    timestamp: new Date().toISOString(),
+    level,
+    message,
+    service: 'scan-handler',
+    ...data,
+  };
+  console.log(JSON.stringify(logEntry));
+}
+
+/**
+ * Error logging with stack trace
+ */
+function logError(error: unknown, context?: Record<string, any>) {
+  const errorData: Record<string, any> = {
+    timestamp: new Date().toISOString(),
+    level: 'error',
+    service: 'scan-handler',
+    ...context,
+  };
+
+  if (error instanceof Error) {
+    errorData.error = {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    };
+  } else {
+    errorData.error = {
+      message: String(error),
+    };
+  }
+
+  console.error(JSON.stringify(errorData));
+}
+
+/**
+ * Timeout wrapper for function execution
+ */
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  errorMessage: string
+): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(errorMessage)), timeoutMs)
+    ),
+  ]);
+}
+
+/**
+ * Handle Captis API errors and map to appropriate HTTP status codes
+ */
+function handleCaptisError(error: unknown): { statusCode: number; message: string } {
+  if (axios.isAxiosError(error)) {
+    const axiosError = error as AxiosError;
+    const status = axiosError.response?.status;
+
+    // Map Captis 400/401 errors to 403 (Forbidden) for security
+    if (status === 400 || status === 401) {
       return {
-        statusCode: 400,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ error: 'Request body is required' }),
+        statusCode: 403,
+        message: 'Invalid Captis credentials or request format',
       };
     }
 
-    const request: ScanRequest = JSON.parse(event.body);
+    // Handle 429 rate limiting
+    if (status === 429) {
+      return {
+        statusCode: 429,
+        message: 'Captis API rate limit exceeded. Please try again later.',
+      };
+    }
+
+    // Handle 5xx errors
+    if (status && status >= 500) {
+      return {
+        statusCode: 503,
+        message: 'Captis service temporarily unavailable',
+      };
+    }
+
+    // Generic error
+    return {
+      statusCode: 502,
+      message: `Captis API error: ${status || 'Unknown'}`,
+    };
+  }
+
+  // Non-Axios error
+  if (error instanceof Error) {
+    return {
+      statusCode: 500,
+      message: error.message,
+    };
+  }
+
+  return {
+    statusCode: 500,
+    message: 'Unknown error occurred',
+  };
+}
+
+export const handler = async (
+  event: APIGatewayProxyEvent
+): Promise<APIGatewayProxyResult> => {
+  const requestId = event.requestContext.requestId || uuidv4();
+  log('info', 'Scan handler invoked', { requestId });
+
+  try {
+    // Parse and validate request body
+    if (!event.body) {
+      log('warn', 'Request body missing', { requestId });
+      return {
+        statusCode: 400,
+        headers: CORS_HEADERS,
+        body: JSON.stringify({ 
+          error: 'Bad Request',
+          message: 'Request body is required',
+        }),
+      };
+    }
+
+    let parsedBody: unknown;
+    try {
+      parsedBody = JSON.parse(event.body);
+    } catch (parseError) {
+      logError(parseError, { requestId, errorType: 'JSON_PARSE_ERROR' });
+      return {
+        statusCode: 400,
+        headers: CORS_HEADERS,
+        body: JSON.stringify({
+          error: 'Bad Request',
+          message: 'Invalid JSON in request body',
+        }),
+      };
+    }
+
+    // Validate request with Zod
+    const validationResult = safeValidateRequest(ScanRequestSchema, parsedBody);
+    if (!validationResult.success) {
+      log('warn', 'Request validation failed', { 
+        requestId, 
+        errors: validationResult.error.errors,
+      });
+      return {
+        statusCode: 400,
+        headers: CORS_HEADERS,
+        body: JSON.stringify(formatValidationError(validationResult.error)),
+      };
+    }
+
+    const request = validationResult.data;
     const { accountID, cameraID, location, timestamp } = request.metadata;
+
+    log('info', 'Processing scan request', { requestId, accountID, cameraID });
 
     // Validate quota (14,400 scans per account per year)
     const year = new Date(timestamp || Date.now()).getFullYear().toString();
     const quota = await dbService.getQuota(accountID, year);
 
     const scansUsed = quota?.scansUsed || 0;
-    const scansLimit = 14400;
-    const warningThreshold = 11520; // 80% of 14400
+    const warningThreshold = Math.floor(SCANS_LIMIT * 0.8); // 80% of limit
 
     // Check for quota warning at 80%
     if (scansUsed >= warningThreshold && (!quota?.lastWarnedAt || 
         new Date(quota.lastWarnedAt) < new Date(Date.now() - 24 * 60 * 60 * 1000))) {
-      // Log warning and update lastWarnedAt
-      const quotaPercentage = Math.round((scansUsed / scansLimit) * 100);
-      console.warn(`Quota warning: Account ${accountID} has used ${scansUsed}/${scansLimit} scans (${quotaPercentage}%)`);
+      const quotaPercentage = Math.round((scansUsed / SCANS_LIMIT) * 100);
+      log('warn', 'Quota warning threshold reached', { 
+        requestId, 
+        accountID, 
+        scansUsed, 
+        quotaPercentage,
+      });
       
       await dbService.updateQuota(accountID, year, scansUsed, new Date().toISOString());
       
@@ -78,20 +242,18 @@ export const handler = async (
           })
         );
       } catch (error) {
-        console.error('Failed to publish quota metric:', error);
+        logError(error, { requestId, accountID, errorType: 'CLOUDWATCH_METRIC_ERROR' });
       }
     }
 
-    if (scansUsed >= scansLimit) {
+    if (scansUsed >= SCANS_LIMIT) {
+      log('warn', 'Quota exceeded', { requestId, accountID, scansUsed });
       return {
         statusCode: 429,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json',
-        },
+        headers: CORS_HEADERS,
         body: JSON.stringify({
           error: 'Quota exceeded',
-          message: `Account has reached the annual limit of ${scansLimit} scans`,
+          message: `Account has reached the annual limit of ${SCANS_LIMIT} scans`,
         }),
       };
     }
@@ -100,12 +262,10 @@ export const handler = async (
     const consent = await dbService.getConsent(accountID);
     
     if (consent?.consentStatus === false) {
+      log('warn', 'Consent not granted', { requestId, accountID });
       return {
         statusCode: 403,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json',
-        },
+        headers: CORS_HEADERS,
         body: JSON.stringify({
           error: 'Consent required',
           message: 'User has opted out of data sharing',
@@ -113,9 +273,9 @@ export const handler = async (
       };
     }
 
-    // If consent not set, prompt opt-in (for now, we'll proceed but log)
+    // If consent not set, log warning but proceed
     if (!consent) {
-      console.warn(`Consent not set for account ${accountID}. Proceeding but should prompt opt-in.`);
+      log('warn', 'Consent not set', { requestId, accountID });
     }
 
     // Get Captis access key from request headers, SSM Parameter Store, or environment
@@ -134,20 +294,21 @@ export const handler = async (
           );
           captisAccessKeyCache = ssmParam.Parameter?.Value || null;
         } catch (error) {
-          console.warn('Failed to get Captis key from SSM, falling back to env var:', error);
+          logError(error, { requestId, errorType: 'SSM_PARAMETER_ERROR' });
         }
       }
       captisAccessKey = captisAccessKeyCache || process.env.CAPTIS_ACCESS_KEY;
     }
     
     if (!captisAccessKey) {
+      log('error', 'Captis access key not found', { requestId });
       return {
-        statusCode: 400,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ error: 'Captis access key is required' }),
+        statusCode: 500,
+        headers: CORS_HEADERS,
+        body: JSON.stringify({ 
+          error: 'Configuration error',
+          message: 'Captis access key is not configured',
+        }),
       };
     }
 
@@ -159,193 +320,267 @@ export const handler = async (
 
     // Generate scan ID
     const scanId = uuidv4();
+    log('info', 'Scan ID generated', { requestId, scanId });
 
     // Convert image to buffer if base64
     // IMPORTANT: Image is never stored - only passed directly to Captis API
-    let imageBuffer: Buffer | string;
+    let imageBuffer: Buffer | string | null = null;
     
-    // Validate image size before processing (max 10MB)
-    const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
-    
-    if (typeof request.image === 'string' && !request.image.startsWith('http')) {
-      // Base64 encoded image - validate size
-      const imageSize = Buffer.byteLength(request.image, 'base64');
-      if (imageSize > MAX_IMAGE_SIZE) {
+    try {
+      if (typeof request.image === 'string' && !request.image.startsWith('http')) {
+        // Base64 encoded image - validate size
+        const imageSize = Buffer.byteLength(request.image, 'base64');
+        if (imageSize > MAX_IMAGE_SIZE) {
+          log('warn', 'Image size exceeds limit', { 
+            requestId, 
+            scanId, 
+            imageSize, 
+            maxSize: MAX_IMAGE_SIZE,
+          });
+          return {
+            statusCode: 400,
+            headers: CORS_HEADERS,
+            body: JSON.stringify({ 
+              error: 'Image size exceeds limit',
+              message: `Image size (${imageSize} bytes) exceeds maximum allowed size of ${MAX_IMAGE_SIZE} bytes`,
+            }),
+          };
+        }
+        imageBuffer = Buffer.from(request.image, 'base64');
+        log('info', 'Image buffer created from base64', { 
+          requestId, 
+          scanId, 
+          imageSize,
+        });
+      } else if (typeof request.image === 'string') {
+        // URL - will be handled by Captis client
+        imageBuffer = request.image;
+        log('info', 'Image URL provided', { requestId, scanId, imageUrl: request.image });
+      } else {
+        log('warn', 'Invalid image format', { requestId, scanId });
         return {
           statusCode: 400,
-          headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ 
-            error: 'Image size exceeds limit',
-            message: `Image size (${imageSize} bytes) exceeds maximum allowed size of ${MAX_IMAGE_SIZE} bytes`,
-          }),
+          headers: CORS_HEADERS,
+          body: JSON.stringify({ error: 'Invalid image format' }),
         };
       }
-      imageBuffer = Buffer.from(request.image, 'base64');
-    } else if (typeof request.image === 'string') {
-      // URL - will be handled by Captis client
-      imageBuffer = request.image;
-    } else {
+
+      // Audit log: Image received but not stored (compliance requirement)
+      log('info', 'Image received for processing', { 
+        requestId, 
+        scanId, 
+        accountID,
+        imageType: Buffer.isBuffer(imageBuffer) ? 'base64' : 'url',
+      });
+
+      // Forward to Captis with async=true
+      // Image is passed directly to Captis and immediately discarded (never stored)
+      const captisResponse = await withTimeout(
+        captisClient.resolve({
+          image: imageBuffer,
+          async: true,
+          site: cameraID,
+          camera: cameraID,
+          name: `scan-${scanId}`,
+          minScore: 50,
+          fields: ['matches', 'biometrics', 'subjects-wanted', 'crimes', 'viewMatchesUrl'],
+          timeout: 120,
+        }),
+        INITIAL_RESPONSE_TIMEOUT,
+        'Captis API request timeout'
+      ).catch((error) => {
+        // Handle Captis-specific errors
+        const captisError = handleCaptisError(error);
+        logError(error, { 
+          requestId, 
+          scanId, 
+          accountID, 
+          errorType: 'CAPTIS_API_ERROR',
+          captisStatusCode: captisError.statusCode,
+        });
+        throw new Error(captisError.message);
+      });
+
+      // Audit log: Image forwarded to Captis, now discard immediately
+      log('info', 'Image forwarded to Captis', { 
+        requestId, 
+        scanId, 
+        captisId: captisResponse.id,
+      });
+      
+      // Explicitly clear image buffer immediately after forwarding to free memory
+      if (Buffer.isBuffer(imageBuffer)) {
+        // Overwrite buffer with zeros for security and memory cleanup
+        imageBuffer.fill(0);
+        imageBuffer = null;
+      }
+      imageBuffer = null;
+
+      // Store scan record in DynamoDB
+      const createdAt = new Date().toISOString();
+      await docClient.send(
+        new PutCommand({
+          TableName: process.env.SCANS_TABLE_NAME!,
+          Item: {
+            scanId,
+            accountID,
+            status: captisResponse.timedOutFlag ? 'PENDING' : 'COMPLETED',
+            captisId: captisResponse.id,
+            metadata: {
+              cameraID,
+              location,
+              timestamp: timestamp || createdAt,
+            },
+            createdAt,
+            updatedAt: createdAt,
+          },
+        })
+      );
+
+      // Increment quota with atomic conditional update to prevent race conditions
+      try {
+        await docClient.send(
+          new UpdateCommand({
+            TableName: process.env.QUOTAS_TABLE_NAME!,
+            Key: { accountID, year },
+            UpdateExpression: 'ADD scansUsed :inc SET scansLimit = :limit',
+            ConditionExpression: 'scansUsed < :limit', // Prevent quota overrun
+            ExpressionAttributeValues: {
+              ':inc': 1,
+              ':limit': SCANS_LIMIT,
+            },
+          })
+        );
+        log('info', 'Quota incremented', { requestId, scanId, accountID, year });
+      } catch (error: any) {
+        // If condition check fails, quota was exceeded
+        if (error.name === 'ConditionalCheckFailedException') {
+          log('warn', 'Quota exceeded during increment', { 
+            requestId, 
+            scanId, 
+            accountID,
+          });
+          return {
+            statusCode: 429,
+            headers: CORS_HEADERS,
+            body: JSON.stringify({
+              error: 'Quota exceeded',
+              message: `Account has reached the annual limit of ${SCANS_LIMIT} scans`,
+            }),
+          };
+        }
+        throw error;
+      }
+
+      // If timed out, trigger polling via EventBridge
+      if (captisResponse.timedOutFlag) {
+        // Store polling metadata for poll handler
+        await docClient.send(
+          new UpdateCommand({
+            TableName: process.env.SCANS_TABLE_NAME!,
+            Key: { scanId },
+            UpdateExpression: 'SET pollingRequired = :polling, captisAccessKey = :key',
+            ExpressionAttributeValues: {
+              ':polling': true,
+              ':key': captisAccessKey,
+            },
+          })
+        );
+
+        // Trigger EventBridge event to start polling
+        try {
+          await eventBridgeClient.send(
+            new PutEventsCommand({
+              Entries: [
+                {
+                  Source: 'spartan-ai.scan',
+                  DetailType: 'Scan Timeout',
+                  Detail: JSON.stringify({
+                    scanId,
+                    captisId: captisResponse.id,
+                    accountID,
+                    captisAccessKey,
+                  }),
+                },
+              ],
+            })
+          );
+          log('info', 'Polling triggered via EventBridge', { 
+            requestId, 
+            scanId, 
+            captisId: captisResponse.id,
+          });
+        } catch (error) {
+          logError(error, { 
+            requestId, 
+            scanId, 
+            errorType: 'EVENTBRIDGE_ERROR',
+          });
+          // Continue - poll handler can be triggered manually if needed
+        }
+      }
+
+      // Return response
+      const response: ScanResponse = {
+        scanId,
+        status: captisResponse.timedOutFlag ? 'PENDING' : 'COMPLETED',
+        topScore: captisResponse.matches?.[0]?.score,
+        viewMatchesUrl: captisResponse.viewMatchesUrl,
+      };
+
+      log('info', 'Scan request completed successfully', { 
+        requestId, 
+        scanId, 
+        status: response.status,
+        topScore: response.topScore,
+      });
+
+      return {
+        statusCode: 200,
+        headers: CORS_HEADERS,
+        body: JSON.stringify(response),
+      };
+    } finally {
+      // Ensure image buffer is cleared even if error occurs
+      if (imageBuffer && Buffer.isBuffer(imageBuffer)) {
+        imageBuffer.fill(0);
+        imageBuffer = null;
+      }
+    }
+  } catch (error) {
+    logError(error, { requestId, errorType: 'HANDLER_ERROR' });
+
+    // Handle validation errors
+    if (error instanceof ZodError) {
       return {
         statusCode: 400,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ error: 'Invalid image format' }),
+        headers: CORS_HEADERS,
+        body: JSON.stringify(formatValidationError(error)),
       };
     }
 
-    // Audit log: Image received but not stored (compliance requirement)
-    console.log(`[AUDIT] Image received for scan ${scanId}, account ${accountID}. Image will be forwarded to Captis and not stored.`);
-
-    // Forward to Captis with async=true
-    // Image is passed directly to Captis and immediately discarded (never stored)
-    const captisResponse = await captisClient.resolve({
-      image: imageBuffer,
-      async: true,
-      site: cameraID,
-      camera: cameraID,
-      name: `scan-${scanId}`,
-      minScore: 50,
-      fields: ['matches', 'biometrics', 'subjects-wanted', 'crimes', 'viewMatchesUrl'],
-      timeout: 120,
-    });
-
-    // Audit log: Image forwarded to Captis, now discarded from memory
-    console.log(`[AUDIT] Image forwarded to Captis for scan ${scanId}. Image buffer discarded from memory.`);
-    
-    // Explicitly clear image buffer to prevent memory leaks
-    if (Buffer.isBuffer(imageBuffer)) {
-      // Overwrite buffer with zeros for security and memory cleanup
-      imageBuffer.fill(0);
-    }
-    imageBuffer = undefined as any;
-
-    // Store scan record in DynamoDB
-    const createdAt = new Date().toISOString();
-    await docClient.send(
-      new PutCommand({
-        TableName: process.env.SCANS_TABLE_NAME!,
-        Item: {
-          scanId,
-          accountID,
-          status: captisResponse.timedOutFlag ? 'PENDING' : 'COMPLETED',
-          captisId: captisResponse.id,
-          metadata: {
-            cameraID,
-            location,
-            timestamp: timestamp || createdAt,
-          },
-          createdAt,
-          updatedAt: createdAt,
-        },
-      })
-    );
-
-    // Increment quota with atomic conditional update to prevent race conditions
-    try {
-      await docClient.send(
-        new UpdateCommand({
-          TableName: process.env.QUOTAS_TABLE_NAME!,
-          Key: { accountID, year },
-          UpdateExpression: 'ADD scansUsed :inc SET scansLimit = :limit',
-          ConditionExpression: 'scansUsed < :limit', // Prevent quota overrun
-          ExpressionAttributeValues: {
-            ':inc': 1,
-            ':limit': scansLimit,
-          },
-        })
-      );
-    } catch (error: any) {
-      // If condition check fails, quota was exceeded
-      if (error.name === 'ConditionalCheckFailedException') {
-        return {
-          statusCode: 429,
-          headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            error: 'Quota exceeded',
-            message: `Account has reached the annual limit of ${scansLimit} scans`,
-          }),
-        };
-      }
-      throw error;
+    // Handle Captis errors
+    if (axios.isAxiosError(error)) {
+      const captisError = handleCaptisError(error);
+      return {
+        statusCode: captisError.statusCode,
+        headers: CORS_HEADERS,
+        body: JSON.stringify({
+          error: 'Captis API Error',
+          message: captisError.message,
+        }),
+      };
     }
 
-    // If timed out, trigger polling via EventBridge
-    if (captisResponse.timedOutFlag) {
-      // Store polling metadata for poll handler
-      await docClient.send(
-        new UpdateCommand({
-          TableName: process.env.SCANS_TABLE_NAME!,
-          Key: { scanId },
-          UpdateExpression: 'SET pollingRequired = :polling, captisAccessKey = :key',
-          ExpressionAttributeValues: {
-            ':polling': true,
-            ':key': captisAccessKey,
-          },
-        })
-      );
-
-      // Trigger EventBridge event to start polling
-      try {
-        await eventBridgeClient.send(
-          new PutEventsCommand({
-            Entries: [
-              {
-                Source: 'spartan-ai.scan',
-                DetailType: 'Scan Timeout',
-                Detail: JSON.stringify({
-                  scanId,
-                  captisId: captisResponse.id,
-                  accountID,
-                  captisAccessKey,
-                }),
-              },
-            ],
-          })
-        );
-        console.log(`Scan ${scanId} timed out, polling triggered via EventBridge`);
-      } catch (error) {
-        console.error('Failed to trigger poll handler:', error);
-        // Continue - poll handler can be triggered manually if needed
-      }
-    }
-
-    // Return response
-    const response: ScanResponse = {
-      scanId,
-      status: captisResponse.timedOutFlag ? 'PENDING' : 'COMPLETED',
-      topScore: captisResponse.matches?.[0]?.score,
-      viewMatchesUrl: captisResponse.viewMatchesUrl,
-    };
-
-    return {
-      statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(response),
-    };
-  } catch (error) {
-    console.error('Scan handler error:', error);
+    // Generic error
     return {
       statusCode: 500,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json',
-      },
+      headers: CORS_HEADERS,
       body: JSON.stringify({
         error: 'Internal server error',
         message: error instanceof Error ? error.message : 'Unknown error',
+        requestId, // Include request ID for debugging
       }),
     };
   }
 };
-
