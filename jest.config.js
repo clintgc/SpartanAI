@@ -21,15 +21,6 @@ module.exports = {
         },
       },
     }],
-    '^.+\\.jsx?$': ['ts-jest', {
-      tsconfig: {
-        target: 'es2020',
-        module: 'commonjs',
-        allowJs: true,
-        esModuleInterop: true,
-        skipLibCheck: true,
-      },
-    }],
   },
   
   // Module file extensions
@@ -66,6 +57,12 @@ module.exports = {
     '!**/SpartanAI/**',
     '!**/spartan-ai/**',
   ],
+  
+  // Snapshot serializers for circular JSON handling
+  // Note: For circular structures in mocks (e.g., SNS/HTTP objects), use jest.spyOn()
+  // instead of direct mocks to avoid "Converting circular structure to JSON" errors
+  // Example: jest.spyOn(awsSdk, 'SNS').mockReturnValue({...}) instead of mocking entire objects
+  snapshotSerializers: [],
   
   // Setup files
   setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
