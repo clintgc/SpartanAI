@@ -24,7 +24,7 @@
     "typescript": "^5.3.3",
     "axios": "^1.6.2",
     "@faker-js/faker": "^8.3.1",
-    "aws-cdk-lib": "^2.100.0",
+    "aws-cdk-lib": "^2.232.2",
     "artillery": "^2.0.0",
     "mocha": "^10.2.0",
     "chai": "^4.3.10",
