@@ -15,10 +15,12 @@ import { expect } from 'chai';
 import { describe, it, before, after, beforeEach, afterEach } from 'mocha';
 import * as sinon from 'sinon';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { SNSEvent, SNSRecord } from 'aws-lambda';
+import { SNSEvent } from 'aws-lambda';
 import { EventBridgeEvent } from 'aws-lambda';
 import { DynamoDBDocumentClient, PutCommand, QueryCommand, ScanCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
+import { EventBridgeClient } from '@aws-sdk/client-eventbridge';
+import { SSMClient } from '@aws-sdk/client-ssm';
 // Import handlers - these will be loaded dynamically to allow mocking
 let scanHandler: any;
 let pollHandler: any;
@@ -104,7 +106,7 @@ describe('Spartan AI POC End-to-End Test', () => {
     });
 
     // Mock SendGrid
-    sendGridStub = sinon.stub(sgMail, 'send').resolves([{ statusCode: 202 }]);
+    sendGridStub = sinon.stub(sgMail, 'send').resolves([{ statusCode: 202, body: {}, headers: {} }] as any);
     sinon.stub(sgMail, 'setApiKey');
 
     // Mock Firebase Admin
@@ -313,7 +315,7 @@ describe('Spartan AI POC End-to-End Test', () => {
               UnsubscribeUrl: 'https://test.com/unsubscribe',
               MessageAttributes: {},
             },
-          } as SNSRecord,
+          } as SNSEvent['Records'][0],
         ],
       };
 
@@ -373,7 +375,7 @@ describe('Spartan AI POC End-to-End Test', () => {
       const cronEvent: EventBridgeEvent<'ScheduledEvent', {}> = {
         version: '0',
         id: 'cron-event-id',
-        'detail-type': 'Scheduled Event',
+        'detail-type': 'ScheduledEvent',
         source: 'aws.events',
         account: '123456789012',
         time: new Date().toISOString(),

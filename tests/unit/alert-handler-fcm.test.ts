@@ -1,5 +1,4 @@
 import { SNSEvent } from 'aws-lambda';
-import { handler } from '../../functions/alert-handler';
 import { DynamoDbService } from '../../shared/services/dynamodb-service';
 import { FcmClient } from '../../shared/services/fcm-client';
 import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
@@ -7,11 +6,36 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
 
 // Mock dependencies using jest.spyOn to avoid circular JSON serialization
+// Must mock before importing the handler module since docClient is created at module load time
+const mockDocClientSend = jest.fn().mockResolvedValue({
+  Item: {
+    scanId: 'test-scan-123',
+    metadata: {
+      location: { lat: 40.7128, lon: -74.0060 },
+    },
+  },
+});
+
+jest.mock('@aws-sdk/lib-dynamodb', () => {
+  const actual = jest.requireActual('@aws-sdk/lib-dynamodb');
+  return {
+    ...actual,
+    DynamoDBDocumentClient: {
+      ...actual.DynamoDBDocumentClient,
+      from: jest.fn(() => ({
+        send: mockDocClientSend,
+      })),
+    },
+  };
+});
+
 jest.mock('../../shared/services/dynamodb-service');
 jest.mock('../../shared/services/fcm-client');
-jest.mock('@aws-sdk/lib-dynamodb');
 jest.mock('@aws-sdk/client-dynamodb');
 jest.mock('@aws-sdk/client-ssm');
+
+// Import handler after mocks are set up
+import { handler } from '../../functions/alert-handler';
 
 describe('Alert Handler FCM Integration', () => {
   const mockDeviceTokens = [
@@ -22,12 +46,9 @@ describe('Alert Handler FCM Integration', () => {
   let mockGetDeviceTokens: jest.SpyInstance;
   let mockUpdateThreatLocation: jest.SpyInstance;
   let mockSendNotification: jest.SpyInstance;
-  let mockDocClientSend: jest.SpyInstance;
-  let mockDynamoDBDocumentClientFrom: jest.SpyInstance;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    jest.resetModules();
 
     // Set environment variables
     process.env.FCM_SERVER_KEY = JSON.stringify({
@@ -38,12 +59,8 @@ describe('Alert Handler FCM Integration', () => {
     process.env.SCANS_TABLE_NAME = 'test-scans';
     process.env.TABLE_PREFIX = 'test';
 
-    // Mock DynamoDB service using jest.spyOn to avoid circular JSON
-    mockGetDeviceTokens = jest.spyOn(DynamoDbService.prototype, 'getDeviceTokens').mockResolvedValue(mockDeviceTokens);
-    mockUpdateThreatLocation = jest.spyOn(DynamoDbService.prototype, 'updateThreatLocation').mockResolvedValue(undefined);
-
-    // Mock DynamoDB DocumentClient using jest.spyOn
-    mockDocClientSend = jest.fn().mockResolvedValue({
+    // Reset mock return value for each test
+    mockDocClientSend.mockResolvedValue({
       Item: {
         scanId: 'test-scan-123',
         metadata: {
@@ -51,9 +68,10 @@ describe('Alert Handler FCM Integration', () => {
         },
       },
     });
-    mockDynamoDBDocumentClientFrom = jest.spyOn(DynamoDBDocumentClient, 'from').mockReturnValue({
-      send: mockDocClientSend,
-    } as any);
+
+    // Mock DynamoDB service using jest.spyOn to avoid circular JSON
+    mockGetDeviceTokens = jest.spyOn(DynamoDbService.prototype, 'getDeviceTokens').mockResolvedValue(mockDeviceTokens);
+    mockUpdateThreatLocation = jest.spyOn(DynamoDbService.prototype, 'updateThreatLocation').mockResolvedValue(undefined);
 
     // Mock FCM client using jest.spyOn to avoid circular JSON and undefined 'send' errors
     mockSendNotification = jest.spyOn(FcmClient.prototype, 'sendNotification').mockResolvedValue({
@@ -154,6 +172,15 @@ describe('Alert Handler FCM Integration', () => {
 
     // Mock empty device tokens
     mockGetDeviceTokens.mockResolvedValueOnce([]);
+    // Reset mock return value for this test
+    mockDocClientSend.mockResolvedValueOnce({
+      Item: {
+        scanId: 'test-scan-123',
+        metadata: {
+          location: { lat: 40.7128, lon: -74.0060 },
+        },
+      },
+    });
 
     const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
 

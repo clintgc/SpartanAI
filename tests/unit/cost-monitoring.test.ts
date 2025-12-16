@@ -1,17 +1,17 @@
 import * as cdk from 'aws-cdk-lib';
 import { Template } from 'aws-cdk-lib/assertions';
-import { CostMonitoring } from '../../infrastructure/lib/cost-monitoring';
-import { LambdaFunctions } from '../../infrastructure/lib/lambda-functions';
-import { DynamoDbTables } from '../../infrastructure/lib/dynamodb-tables';
-import { ApiGateway } from '../../infrastructure/lib/api-gateway';
-import { SnsTopics } from '../../infrastructure/lib/sns-topics';
+import { CostMonitoring } from '../../spartan-ai/infrastructure/lib/cost-monitoring';
+import { LambdaFunctions } from '../../spartan-ai/infrastructure/lib/lambda-functions';
+import { DynamoDbTables } from '../../spartan-ai/infrastructure/lib/dynamodb-tables';
+import { ApiGateway } from '../../spartan-ai/infrastructure/lib/api-gateway';
+import { SnsTopics } from '../../spartan-ai/infrastructure/lib/sns-topics';
 import { Stack } from 'aws-cdk-lib';
 
 // Mock dependencies
-jest.mock('../../infrastructure/lib/lambda-functions');
-jest.mock('../../infrastructure/lib/dynamodb-tables');
-jest.mock('../../infrastructure/lib/api-gateway');
-jest.mock('../../infrastructure/lib/sns-topics');
+jest.mock('../../spartan-ai/infrastructure/lib/lambda-functions');
+jest.mock('../../spartan-ai/infrastructure/lib/dynamodb-tables');
+jest.mock('../../spartan-ai/infrastructure/lib/api-gateway');
+jest.mock('../../spartan-ai/infrastructure/lib/sns-topics');
 
 describe('Cost Monitoring Integration', () => {
   let stack: Stack;

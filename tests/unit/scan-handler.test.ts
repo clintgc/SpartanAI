@@ -22,6 +22,16 @@ describe('Scan Handler', () => {
       headers: {
         'x-captis-access-key': 'test-key',
       },
+      multiValueHeaders: {},
+      httpMethod: 'POST',
+      isBase64Encoded: false,
+      path: '/api/v1/scan',
+      pathParameters: null,
+      queryStringParameters: null,
+      multiValueQueryStringParameters: null,
+      stageVariables: null,
+      requestContext: {} as any,
+      resource: '/api/v1/scan',
     } as APIGatewayProxyEvent;
   });
 

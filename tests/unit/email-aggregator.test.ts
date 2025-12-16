@@ -57,7 +57,7 @@ describe('Email Aggregator', () => {
     return {
       version: '0',
       id: 'test-event-id',
-      'detail-type': 'Scheduled Event',
+      'detail-type': 'ScheduledEvent',
       source: 'aws.events',
       account: '123456789012',
       time: new Date().toISOString(),
