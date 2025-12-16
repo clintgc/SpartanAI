@@ -15,6 +15,7 @@ module.exports = {
         moduleResolution: 'node',
         allowJs: true,
         esModuleInterop: true,
+        rootDirs: ['./', './spartan-ai/'],  // Add rootDirs for duplicate directory handling
         paths: {
           'infrastructure/lib/*': ['spartan-ai/infrastructure/lib/*'],
           '*': ['shared/*', 'functions/*'],
@@ -73,8 +74,8 @@ module.exports = {
   // Module directories
   moduleDirectories: ['node_modules', '<rootDir>'],
   
-  // Worker memory limit to prevent child process exceptions
-  workerIdleMemoryLimit: '512MB',
+  // Worker memory limit to prevent child process exceptions (increased to 1GB for circular JSON handling)
+  workerIdleMemoryLimit: '1GB',
   
   // Max workers to prevent memory issues and child process exceptions
   maxWorkers: '50%',

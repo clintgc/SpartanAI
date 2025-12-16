@@ -1,17 +1,29 @@
 import { SNSEvent } from 'aws-lambda';
 import { handler } from '../../functions/alert-handler';
+import { DynamoDbService } from '../../shared/services/dynamodb-service';
+import { FcmClient } from '../../shared/services/fcm-client';
+import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
 
-// Mock dependencies
+// Mock dependencies using jest.spyOn to avoid circular JSON serialization
 jest.mock('../../shared/services/dynamodb-service');
 jest.mock('../../shared/services/fcm-client');
 jest.mock('@aws-sdk/lib-dynamodb');
 jest.mock('@aws-sdk/client-dynamodb');
+jest.mock('@aws-sdk/client-ssm');
 
 describe('Alert Handler FCM Integration', () => {
   const mockDeviceTokens = [
     { accountID: 'test-account-001', deviceToken: 'token-1', registeredAt: '2024-01-01T00:00:00Z' },
     { accountID: 'test-account-001', deviceToken: 'token-2', registeredAt: '2024-01-01T00:00:00Z' },
   ];
+
+  let mockGetDeviceTokens: jest.SpyInstance;
+  let mockUpdateThreatLocation: jest.SpyInstance;
+  let mockSendNotification: jest.SpyInstance;
+  let mockDocClientSend: jest.SpyInstance;
+  let mockDynamoDBDocumentClientFrom: jest.SpyInstance;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -25,12 +37,37 @@ describe('Alert Handler FCM Integration', () => {
     });
     process.env.SCANS_TABLE_NAME = 'test-scans';
     process.env.TABLE_PREFIX = 'test';
+
+    // Mock DynamoDB service using jest.spyOn to avoid circular JSON
+    mockGetDeviceTokens = jest.spyOn(DynamoDbService.prototype, 'getDeviceTokens').mockResolvedValue(mockDeviceTokens);
+    mockUpdateThreatLocation = jest.spyOn(DynamoDbService.prototype, 'updateThreatLocation').mockResolvedValue(undefined);
+
+    // Mock DynamoDB DocumentClient using jest.spyOn
+    mockDocClientSend = jest.fn().mockResolvedValue({
+      Item: {
+        scanId: 'test-scan-123',
+        metadata: {
+          location: { lat: 40.7128, lon: -74.0060 },
+        },
+      },
+    });
+    mockDynamoDBDocumentClientFrom = jest.spyOn(DynamoDBDocumentClient, 'from').mockReturnValue({
+      send: mockDocClientSend,
+    } as any);
+
+    // Mock FCM client using jest.spyOn to avoid circular JSON and undefined 'send' errors
+    mockSendNotification = jest.spyOn(FcmClient.prototype, 'sendNotification').mockResolvedValue({
+      successCount: 2,
+      failureCount: 0,
+      responses: [{ success: true }, { success: true }],
+    } as any);
   });
 
   afterEach(() => {
     delete process.env.FCM_SERVER_KEY;
     delete process.env.SCANS_TABLE_NAME;
     delete process.env.TABLE_PREFIX;
+    jest.restoreAllMocks();
   });
 
   const createMockSnsEvent = (topScore: number): SNSEvent => {
@@ -71,35 +108,10 @@ describe('Alert Handler FCM Integration', () => {
   it('should send FCM notification for 75-89% match (MEDIUM threat)', async () => {
     const snsEvent = createMockSnsEvent(80); // 80% match
 
-    // Mock DynamoDB service
-    const { DynamoDbService } = require('../../shared/services/dynamodb-service');
-    DynamoDbService.prototype.getDeviceTokens = jest.fn().mockResolvedValue(mockDeviceTokens);
-
-    // Mock DynamoDB DocumentClient for scan lookup
-    const { DynamoDBDocumentClient, GetCommand } = require('@aws-sdk/lib-dynamodb');
-    const mockSend = jest.fn().mockResolvedValue({
-      Item: {
-        scanId: 'test-scan-123',
-        metadata: {
-          location: { lat: 40.7128, lon: -74.0060 },
-        },
-      },
-    });
-    DynamoDBDocumentClient.from = jest.fn().mockReturnValue({ send: mockSend });
-
-    // Mock FCM client
-    const { FcmClient } = require('../../shared/services/fcm-client');
-    const mockSendNotification = jest.fn().mockResolvedValue({
-      successCount: 2,
-      failureCount: 0,
-      responses: [{ success: true }, { success: true }],
-    });
-    FcmClient.prototype.sendNotification = mockSendNotification;
-
     await handler(snsEvent);
 
     // Verify device tokens were fetched from DynamoDB
-    expect(DynamoDbService.prototype.getDeviceTokens).toHaveBeenCalledWith('test-account-001');
+    expect(mockGetDeviceTokens).toHaveBeenCalledWith('test-account-001');
 
     // Verify FCM notification was sent with correct parameters
     expect(mockSendNotification).toHaveBeenCalledWith(
@@ -122,29 +134,6 @@ describe('Alert Handler FCM Integration', () => {
   it('should send FCM notification for >89% match (HIGH threat)', async () => {
     const snsEvent = createMockSnsEvent(95); // 95% match
 
-    const { DynamoDbService } = require('../../shared/services/dynamodb-service');
-    DynamoDbService.prototype.getDeviceTokens = jest.fn().mockResolvedValue(mockDeviceTokens);
-    DynamoDbService.prototype.updateThreatLocation = jest.fn().mockResolvedValue(undefined);
-
-    const { DynamoDBDocumentClient, GetCommand } = require('@aws-sdk/lib-dynamodb');
-    const mockSend = jest.fn().mockResolvedValue({
-      Item: {
-        scanId: 'test-scan-123',
-        metadata: {
-          location: { lat: 40.7128, lon: -74.0060 },
-        },
-      },
-    });
-    DynamoDBDocumentClient.from = jest.fn().mockReturnValue({ send: mockSend });
-
-    const { FcmClient } = require('../../shared/services/fcm-client');
-    const mockSendNotification = jest.fn().mockResolvedValue({
-      successCount: 2,
-      failureCount: 0,
-      responses: [{ success: true }, { success: true }],
-    });
-    FcmClient.prototype.sendNotification = mockSendNotification;
-
     await handler(snsEvent);
 
     // Verify FCM notification was sent with HIGH threat title
@@ -163,30 +152,15 @@ describe('Alert Handler FCM Integration', () => {
   it('should handle no device tokens gracefully', async () => {
     const snsEvent = createMockSnsEvent(80);
 
-    const { DynamoDbService } = require('../../shared/services/dynamodb-service');
-    DynamoDbService.prototype.getDeviceTokens = jest.fn().mockResolvedValue([]);
-
-    const { DynamoDBDocumentClient } = require('@aws-sdk/lib-dynamodb');
-    const mockSend = jest.fn().mockResolvedValue({
-      Item: {
-        scanId: 'test-scan-123',
-        metadata: {
-          location: { lat: 40.7128, lon: -74.0060 },
-        },
-      },
-    });
-    DynamoDBDocumentClient.from = jest.fn().mockReturnValue({ send: mockSend });
-
-    const { FcmClient } = require('../../shared/services/fcm-client');
-    const mockSendNotification = jest.fn();
-    FcmClient.prototype.sendNotification = mockSendNotification;
+    // Mock empty device tokens
+    mockGetDeviceTokens.mockResolvedValueOnce([]);
 
     const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
 
     await handler(snsEvent);
 
     // Verify device tokens were queried
-    expect(DynamoDbService.prototype.getDeviceTokens).toHaveBeenCalledWith('test-account-001');
+    expect(mockGetDeviceTokens).toHaveBeenCalledWith('test-account-001');
 
     // Verify FCM was not called
     expect(mockSendNotification).not.toHaveBeenCalled();
@@ -205,20 +179,6 @@ describe('Alert Handler FCM Integration', () => {
     // Mock invalid FCM config
     process.env.FCM_SERVER_KEY = 'invalid-json';
 
-    const { DynamoDbService } = require('../../shared/services/dynamodb-service');
-    DynamoDbService.prototype.getDeviceTokens = jest.fn().mockResolvedValue(mockDeviceTokens);
-
-    const { DynamoDBDocumentClient } = require('@aws-sdk/lib-dynamodb');
-    const mockSend = jest.fn().mockResolvedValue({
-      Item: {
-        scanId: 'test-scan-123',
-        metadata: {
-          location: { lat: 40.7128, lon: -74.0060 },
-        },
-      },
-    });
-    DynamoDBDocumentClient.from = jest.fn().mockReturnValue({ send: mockSend });
-
     const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
 
     await handler(snsEvent);
@@ -233,28 +193,6 @@ describe('Alert Handler FCM Integration', () => {
 
   it('should include all required data fields in FCM notification', async () => {
     const snsEvent = createMockSnsEvent(85);
-
-    const { DynamoDbService } = require('../../shared/services/dynamodb-service');
-    DynamoDbService.prototype.getDeviceTokens = jest.fn().mockResolvedValue(mockDeviceTokens);
-
-    const { DynamoDBDocumentClient } = require('@aws-sdk/lib-dynamodb');
-    const mockSend = jest.fn().mockResolvedValue({
-      Item: {
-        scanId: 'test-scan-123',
-        metadata: {
-          location: { lat: 40.7128, lon: -74.0060 },
-        },
-      },
-    });
-    DynamoDBDocumentClient.from = jest.fn().mockReturnValue({ send: mockSend });
-
-    const { FcmClient } = require('../../shared/services/fcm-client');
-    const mockSendNotification = jest.fn().mockResolvedValue({
-      successCount: 2,
-      failureCount: 0,
-      responses: [{ success: true }, { success: true }],
-    });
-    FcmClient.prototype.sendNotification = mockSendNotification;
 
     await handler(snsEvent);
 
@@ -271,4 +209,3 @@ describe('Alert Handler FCM Integration', () => {
     expect(notificationData).toHaveProperty('timestamp');
   });
 });
-
