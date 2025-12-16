@@ -4,7 +4,8 @@ module.exports = {
   testEnvironment: 'node',
   
   // Transform TypeScript and JavaScript files (including .tsx, .jsx)
-  // tsconfig is a direct object (no compilerOptions wrapper) to fix TS5023
+  // Single pattern '^.+\\.[tj]sx?$' handles both .ts/.tsx and .js/.jsx files
+  // Flat tsconfig object (no compilerOptions wrapper) fixes TS5023
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
       tsconfig: {
@@ -13,6 +14,7 @@ module.exports = {
         strict: true,
         moduleResolution: 'node',
         allowJs: true,
+        esModuleInterop: true,
         paths: {
           'infrastructure/lib/*': ['spartan-ai/infrastructure/lib/*'],
           '*': ['shared/*', 'functions/*'],
