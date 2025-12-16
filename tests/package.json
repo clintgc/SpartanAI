@@ -2,6 +2,7 @@
   "name": "spartan-ai-tests",
   "version": "1.0.0",
   "description": "Tests for Spartan AI",
+  "type": "commonjs",
   "scripts": {
     "test": "jest",
     "test:unit": "jest --testPathPattern=unit",
