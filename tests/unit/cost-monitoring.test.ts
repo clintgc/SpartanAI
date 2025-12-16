@@ -1,11 +1,24 @@
 import * as cdk from 'aws-cdk-lib';
 import { Template } from 'aws-cdk-lib/assertions';
+import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import { CostMonitoring } from '../../spartan-ai/infrastructure/lib/cost-monitoring';
 import { LambdaFunctions } from '../../spartan-ai/infrastructure/lib/lambda-functions';
 import { DynamoDbTables } from '../../spartan-ai/infrastructure/lib/dynamodb-tables';
 import { ApiGateway } from '../../spartan-ai/infrastructure/lib/api-gateway';
 import { SnsTopics } from '../../spartan-ai/infrastructure/lib/sns-topics';
 import { Stack } from 'aws-cdk-lib';
+
+// Helper function to create a proper CloudWatch Metric mock
+// Uses actual CDK Metric class to ensure compatibility with MathExpression
+const createMockMetric = (): cloudwatch.IMetric => {
+  return new cloudwatch.Metric({
+    metricName: 'MockMetric',
+    namespace: 'AWS/Lambda',
+    dimensionsMap: {},
+    statistic: 'Sum',
+    period: cdk.Duration.seconds(300),
+  });
+};
 
 // Mock dependencies
 jest.mock('../../spartan-ai/infrastructure/lib/lambda-functions');
@@ -22,95 +35,95 @@ describe('Cost Monitoring Integration', () => {
   beforeEach(() => {
     stack = new Stack();
 
-    // Create mock Lambda functions
+    // Create mock Lambda functions with proper CloudWatch Metric mocks
     mockLambdaFunctions = {
       scanHandler: {
-        metricDuration: jest.fn().mockReturnValue({}),
-        metricInvocations: jest.fn().mockReturnValue({}),
-        metricErrors: jest.fn().mockReturnValue({}),
-        metricThrottles: jest.fn().mockReturnValue({}),
+        metricDuration: jest.fn().mockReturnValue(createMockMetric()),
+        metricInvocations: jest.fn().mockReturnValue(createMockMetric()),
+        metricErrors: jest.fn().mockReturnValue(createMockMetric()),
+        metricThrottles: jest.fn().mockReturnValue(createMockMetric()),
       } as any,
       pollHandler: {
-        metricDuration: jest.fn().mockReturnValue({}),
-        metricInvocations: jest.fn().mockReturnValue({}),
-        metricErrors: jest.fn().mockReturnValue({}),
-        metricThrottles: jest.fn().mockReturnValue({}),
+        metricDuration: jest.fn().mockReturnValue(createMockMetric()),
+        metricInvocations: jest.fn().mockReturnValue(createMockMetric()),
+        metricErrors: jest.fn().mockReturnValue(createMockMetric()),
+        metricThrottles: jest.fn().mockReturnValue(createMockMetric()),
       } as any,
       alertHandler: {
-        metricDuration: jest.fn().mockReturnValue({}),
-        metricInvocations: jest.fn().mockReturnValue({}),
-        metricErrors: jest.fn().mockReturnValue({}),
-        metricThrottles: jest.fn().mockReturnValue({}),
+        metricDuration: jest.fn().mockReturnValue(createMockMetric()),
+        metricInvocations: jest.fn().mockReturnValue(createMockMetric()),
+        metricErrors: jest.fn().mockReturnValue(createMockMetric()),
+        metricThrottles: jest.fn().mockReturnValue(createMockMetric()),
       } as any,
       emailAggregator: {
-        metricDuration: jest.fn().mockReturnValue({}),
-        metricInvocations: jest.fn().mockReturnValue({}),
+        metricDuration: jest.fn().mockReturnValue(createMockMetric()),
+        metricInvocations: jest.fn().mockReturnValue(createMockMetric()),
       } as any,
       webhookDispatcher: {
-        metricDuration: jest.fn().mockReturnValue({}),
-        metricInvocations: jest.fn().mockReturnValue({}),
+        metricDuration: jest.fn().mockReturnValue(createMockMetric()),
+        metricInvocations: jest.fn().mockReturnValue(createMockMetric()),
       } as any,
       scanDetailHandler: {
-        metricDuration: jest.fn().mockReturnValue({}),
-        metricInvocations: jest.fn().mockReturnValue({}),
+        metricDuration: jest.fn().mockReturnValue(createMockMetric()),
+        metricInvocations: jest.fn().mockReturnValue(createMockMetric()),
       } as any,
       scanListHandler: {
-        metricDuration: jest.fn().mockReturnValue({}),
-        metricInvocations: jest.fn().mockReturnValue({}),
+        metricDuration: jest.fn().mockReturnValue(createMockMetric()),
+        metricInvocations: jest.fn().mockReturnValue(createMockMetric()),
       } as any,
       consentHandler: {
-        metricDuration: jest.fn().mockReturnValue({}),
-        metricInvocations: jest.fn().mockReturnValue({}),
+        metricDuration: jest.fn().mockReturnValue(createMockMetric()),
+        metricInvocations: jest.fn().mockReturnValue(createMockMetric()),
       } as any,
       webhookRegistrationHandler: {
-        metricDuration: jest.fn().mockReturnValue({}),
-        metricInvocations: jest.fn().mockReturnValue({}),
+        metricDuration: jest.fn().mockReturnValue(createMockMetric()),
+        metricInvocations: jest.fn().mockReturnValue(createMockMetric()),
       } as any,
       gdprDeletionHandler: {
-        metricDuration: jest.fn().mockReturnValue({}),
-        metricInvocations: jest.fn().mockReturnValue({}),
+        metricDuration: jest.fn().mockReturnValue(createMockMetric()),
+        metricInvocations: jest.fn().mockReturnValue(createMockMetric()),
       } as any,
     } as any;
 
-    // Create mock DynamoDB tables
+    // Create mock DynamoDB tables with proper CloudWatch Metric mocks
     mockTables = {
       scansTable: {
-        metricConsumedReadCapacityUnits: jest.fn().mockReturnValue({}),
-        metricConsumedWriteCapacityUnits: jest.fn().mockReturnValue({}),
-        metricUserErrors: jest.fn().mockReturnValue({}),
+        metricConsumedReadCapacityUnits: jest.fn().mockReturnValue(createMockMetric()),
+        metricConsumedWriteCapacityUnits: jest.fn().mockReturnValue(createMockMetric()),
+        metricUserErrors: jest.fn().mockReturnValue(createMockMetric()),
       } as any,
       quotasTable: {
-        metricConsumedReadCapacityUnits: jest.fn().mockReturnValue({}),
-        metricConsumedWriteCapacityUnits: jest.fn().mockReturnValue({}),
-        metricUserErrors: jest.fn().mockReturnValue({}),
+        metricConsumedReadCapacityUnits: jest.fn().mockReturnValue(createMockMetric()),
+        metricConsumedWriteCapacityUnits: jest.fn().mockReturnValue(createMockMetric()),
+        metricUserErrors: jest.fn().mockReturnValue(createMockMetric()),
       } as any,
       threatLocationsTable: {
-        metricConsumedReadCapacityUnits: jest.fn().mockReturnValue({}),
-        metricConsumedWriteCapacityUnits: jest.fn().mockReturnValue({}),
+        metricConsumedReadCapacityUnits: jest.fn().mockReturnValue(createMockMetric()),
+        metricConsumedWriteCapacityUnits: jest.fn().mockReturnValue(createMockMetric()),
       } as any,
       consentTable: {
-        metricConsumedReadCapacityUnits: jest.fn().mockReturnValue({}),
-        metricConsumedWriteCapacityUnits: jest.fn().mockReturnValue({}),
+        metricConsumedReadCapacityUnits: jest.fn().mockReturnValue(createMockMetric()),
+        metricConsumedWriteCapacityUnits: jest.fn().mockReturnValue(createMockMetric()),
       } as any,
       webhookSubscriptionsTable: {
-        metricConsumedReadCapacityUnits: jest.fn().mockReturnValue({}),
-        metricConsumedWriteCapacityUnits: jest.fn().mockReturnValue({}),
+        metricConsumedReadCapacityUnits: jest.fn().mockReturnValue(createMockMetric()),
+        metricConsumedWriteCapacityUnits: jest.fn().mockReturnValue(createMockMetric()),
       } as any,
       deviceTokensTable: {
-        metricConsumedReadCapacityUnits: jest.fn().mockReturnValue({}),
-        metricConsumedWriteCapacityUnits: jest.fn().mockReturnValue({}),
+        metricConsumedReadCapacityUnits: jest.fn().mockReturnValue(createMockMetric()),
+        metricConsumedWriteCapacityUnits: jest.fn().mockReturnValue(createMockMetric()),
       } as any,
       accountProfilesTable: {
-        metricConsumedReadCapacityUnits: jest.fn().mockReturnValue({}),
-        metricConsumedWriteCapacityUnits: jest.fn().mockReturnValue({}),
+        metricConsumedReadCapacityUnits: jest.fn().mockReturnValue(createMockMetric()),
+        metricConsumedWriteCapacityUnits: jest.fn().mockReturnValue(createMockMetric()),
       } as any,
     } as any;
 
-    // Create mock API Gateway
+    // Create mock API Gateway with proper CloudWatch Metric mocks
     mockApiGateway = {
       restApi: {
-        metricCount: jest.fn().mockReturnValue({}),
-        metricLatency: jest.fn().mockReturnValue({}),
+        metricCount: jest.fn().mockReturnValue(createMockMetric()),
+        metricLatency: jest.fn().mockReturnValue(createMockMetric()),
       } as any,
     } as any;
   });

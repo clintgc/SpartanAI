@@ -12,6 +12,7 @@
     "test:unit": "jest --testPathPattern=unit",
     "test:integration": "jest --testPathPattern=integration",
     "test:coverage": "jest --coverage",
+    "test:coverage:inband": "jest --coverage --runInBand",
     "test:watch": "jest --watch",
     "test:load": "artillery run tests/load/artillery.yml",
     "test:load:report": "artillery run --output tests/load/report.json tests/load/artillery.yml && artillery report tests/load/report.json",
