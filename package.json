@@ -16,7 +16,7 @@
     "test:watch": "jest --watch",
     "test:load": "artillery run tests/load/artillery.yml",
     "test:load:report": "artillery run --output tests/load/report.json tests/load/artillery.yml && artillery report tests/load/report.json",
-    "test:e2e": "mocha tests/e2e/**/*.test.ts --require ts-node/register --timeout 30000",
+    "test:e2e": "TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"esModuleInterop\":true}' mocha tests/e2e/**/*.test.ts --require ts-node/register --timeout 30000",
     "audit": "npm audit",
     "audit:fix": "npm audit fix",
     "audit:force": "npm audit --force",
