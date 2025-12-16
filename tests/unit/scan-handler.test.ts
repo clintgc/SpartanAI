@@ -6,6 +6,15 @@ const mockSSMSend = jest.fn();
 const mockCloudWatchSend = jest.fn();
 const mockEventBridgeSend = jest.fn();
 
+// Mock DynamoDB client used by DynamoDbService
+jest.mock('@aws-sdk/client-dynamodb', () => {
+  const actual = jest.requireActual('@aws-sdk/client-dynamodb');
+  return {
+    ...actual,
+    DynamoDBClient: jest.fn().mockImplementation(() => ({})),
+  };
+});
+
 jest.mock('@aws-sdk/lib-dynamodb', () => {
   const actual = jest.requireActual('@aws-sdk/lib-dynamodb');
   return {
@@ -113,38 +122,84 @@ describe('Scan Handler', () => {
   });
 
   it('should validate quota and return 429 when exceeded', async () => {
-    // Mock quota exceeded - handler calls getQuota(accountID, year)
-    const { DynamoDbService } = require('../../shared/services/dynamodb-service');
+    // Mock quota exceeded - handler uses dbService.getQuota(accountID, year)
+    // The service uses DynamoDBDocumentClient.send() internally
+    const { GetCommand } = require('@aws-sdk/lib-dynamodb');
+    const { CaptisClient } = require('../../shared/services/captis-client');
     
-    // Mock quota that exceeds limit (triggers 429 before any other processing)
-    // Set scansUsed > SCANS_LIMIT to trigger 429, and set lastWarnedAt to skip warning logic
-    DynamoDbService.prototype.getQuota = jest.fn().mockResolvedValue({
-      scansUsed: 14401, // Exceeds limit (>= SCANS_LIMIT)
-      scansLimit: 14400,
-      accountID: '550e8400-e29b-41d4-a716-446655440000',
-      year: new Date().getFullYear().toString(),
-      lastWarnedAt: new Date().toISOString(), // Already warned recently, skip warning logic
+    const currentYear = new Date().getFullYear().toString();
+    const recentDate = new Date().toISOString();
+    
+    // Mock DynamoDB DocumentClient to return quota that exceeds limit
+    // Handler checks: if (scansUsed >= SCANS_LIMIT) where SCANS_LIMIT = 14400
+    // Table name will be 'test-quotas' (TABLE_PREFIX='test')
+    // GetCommand has input property with TableName
+    mockDocClientSend.mockImplementation((command) => {
+      // GetCommand structure: command.input.TableName
+      const tableName = command.input?.TableName || command.input?.tableName;
+      const isGetCommand = command.constructor.name === 'GetCommand' || command.constructor.name.includes('Get');
+      
+      if (isGetCommand && tableName && tableName.includes('quotas')) {
+        return Promise.resolve({
+          Item: {
+            scansUsed: 14401, // Exceeds limit (>= SCANS_LIMIT = 14400)
+            scansLimit: 14400,
+            accountID: '550e8400-e29b-41d4-a716-446655440000',
+            year: currentYear,
+            lastWarnedAt: recentDate,
+          },
+        });
+      }
+      // Return empty Item for other GetCommands (consent, etc.)
+      if (isGetCommand) {
+        return Promise.resolve({ Item: null });
+      }
+      // Return empty for other commands
+      return Promise.resolve({});
     });
-    // Mock updateQuota with correct signature: (accountID, year, scansUsed, lastWarnedAt)
-    DynamoDbService.prototype.updateQuota = jest.fn().mockResolvedValue(undefined);
+    
+    // Mock Captis client in case handler continues (shouldn't happen)
+    CaptisClient.prototype.resolve = jest.fn().mockResolvedValue({ id: 'captis-123' });
+    CaptisClient.prototype.poll = jest.fn().mockResolvedValue({
+      id: 'captis-123',
+      status: 'COMPLETED',
+      timedOutFlag: false,
+      matches: [],
+      topScore: 0,
+    });
 
     const response = await handler(mockEvent);
     expect(response.statusCode).toBe(429);
   });
 
   it('should check consent and return 403 if opted out', async () => {
-    // Mock consent opted out
-    const { DynamoDbService } = require('../../shared/services/dynamodb-service');
+    // Mock consent opted out - handler uses dbService.getQuota() and getConsent()
+    const { GetCommand } = require('@aws-sdk/lib-dynamodb');
+    const currentYear = new Date().getFullYear().toString();
     
-    DynamoDbService.prototype.getQuota = jest.fn().mockResolvedValue({
-      scansUsed: 0,
-      scansLimit: 14400,
-      accountID: '550e8400-e29b-41d4-a716-446655440000',
-      year: new Date().getFullYear().toString(),
-    });
-    DynamoDbService.prototype.getConsent = jest.fn().mockResolvedValue({
-      accountID: '550e8400-e29b-41d4-a716-446655440000',
-      consentStatus: false,
+    // Mock DynamoDB DocumentClient to return quota (under limit) and consent (opted out)
+    mockDocClientSend.mockImplementation((command) => {
+      if (command.constructor.name === 'GetCommand') {
+        if (command.input?.TableName?.includes('quotas')) {
+          return Promise.resolve({
+            Item: {
+              scansUsed: 0,
+              scansLimit: 14400,
+              accountID: '550e8400-e29b-41d4-a716-446655440000',
+              year: currentYear,
+            },
+          });
+        }
+        if (command.input?.TableName?.includes('consent')) {
+          return Promise.resolve({
+            Item: {
+              accountID: '550e8400-e29b-41d4-a716-446655440000',
+              consentStatus: false,
+            },
+          });
+        }
+      }
+      return Promise.resolve({});
     });
 
     const response = await handler(mockEvent);
