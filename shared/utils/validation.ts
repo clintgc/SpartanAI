@@ -11,13 +11,23 @@ export const LocationSchema = z.object({
   lon: z.number().min(-180).max(180, 'Longitude must be between -180 and 180'),
 });
 
-// Scan request schema
+// Scan request schema - matches ScanRequest interface
 export const ScanRequestSchema = z.object({
-  image: z.string().min(1, 'Image is required'),
-  accountID: z.string().uuid('Invalid accountID format'),
-  cameraID: z.string().min(1, 'CameraID is required').max(100, 'CameraID too long'),
-  location: LocationSchema,
-  timestamp: z.string().datetime().optional(),
+  image: z.string().min(1, 'Image is required').refine(
+    (val) => {
+      // Allow base64 strings or HTTP/HTTPS URLs
+      return val.startsWith('http://') || 
+             val.startsWith('https://') || 
+             val.length > 100; // Base64 strings are typically longer
+    },
+    { message: 'Image must be a valid base64 string or HTTP/HTTPS URL' }
+  ),
+  metadata: z.object({
+    accountID: z.string().uuid('Invalid accountID format'),
+    cameraID: z.string().min(1, 'CameraID is required').max(100, 'CameraID too long'),
+    location: LocationSchema,
+    timestamp: z.string().datetime('Invalid timestamp format (ISO8601 required)').optional(),
+  }),
 });
 
 // Consent request schema
