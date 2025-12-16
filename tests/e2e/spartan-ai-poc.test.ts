@@ -21,17 +21,12 @@ import { EventBridgeClient } from '@aws-sdk/client-eventbridge';
 import { SSMClient } from '@aws-sdk/client-ssm';
 import * as sgMail from '@sendgrid/mail';
 import * as admin from 'firebase-admin';
-// Use require-style imports for handlers to avoid ESM resolution issues in mocha+ts-node
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { handler: scanHandler } = require('../../functions/scan-handler');
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { handler: pollHandler } = require('../../functions/poll-handler');
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { handler: alertHandler } = require('../../functions/alert-handler');
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { handler: emailAggregator } = require('../../functions/email-aggregator');
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { handler: consentHandler } = require('../../functions/consent-handler');
+// Handlers will be required lazily after mocks are set up
+let scanHandler: any;
+let pollHandler: any;
+let alertHandler: any;
+let emailAggregator: any;
+let consentHandler: any;
 
 // Mock AWS SDK clients
 let dynamoDbStub: sinon.SinonStub;
@@ -41,8 +36,8 @@ let ssmStub: sinon.SinonStub;
 let sendGridStub: sinon.SinonStub;
 let fcmStub: sinon.SinonStub;
 
-describe.skip('Spartan AI POC End-to-End Test', () => {
-  const testAccountID = 'test-account-e2e-001';
+describe('Spartan AI POC End-to-End Test', () => {
+  const testAccountID = '550e8400-e29b-41d4-a716-446655440000';
   const testScanId = 'scan-e2e-12345';
   const testSubjectId = 'subject-789';
   const testYear = new Date().getFullYear().toString();
@@ -89,11 +84,11 @@ describe.skip('Spartan AI POC End-to-End Test', () => {
 
     // Mock SNS Client
     snsStub = sinon.stub();
-    sinon.replace(SNSClient.prototype as any, 'send', snsStub);
+    sinon.stub(SNSClient.prototype as any, 'send').callsFake((...args: any[]) => snsStub(...args));
 
     // Mock EventBridge Client
     eventBridgeStub = sinon.stub();
-    sinon.replace(EventBridgeClient.prototype as any, 'send', eventBridgeStub);
+    sinon.stub(EventBridgeClient.prototype as any, 'send').callsFake((...args: any[]) => eventBridgeStub(...args));
 
     // Mock SSM Client
     ssmStub = sinon.stub().resolves({
@@ -101,7 +96,7 @@ describe.skip('Spartan AI POC End-to-End Test', () => {
         Value: 'test-captis-key',
       },
     });
-    sinon.replace(SSMClient.prototype as any, 'send', ssmStub);
+    sinon.stub(SSMClient.prototype as any, 'send').callsFake((...args: any[]) => ssmStub(...args));
 
     // Mock SendGrid
     const sgAny: any = sgMail as any;
@@ -117,6 +112,7 @@ describe.skip('Spartan AI POC End-to-End Test', () => {
     } as any);
 
     // Mock Captis Client HTTP requests
+    // Mock Captis Client HTTP requests (axios)
     const axios = require('axios');
     sinon.stub(axios, 'post').resolves({
       status: 200,
@@ -126,6 +122,32 @@ describe.skip('Spartan AI POC End-to-End Test', () => {
         async: true,
       },
     });
+    sinon.stub(axios, 'get').resolves({
+      data: Buffer.from('img'),
+      headers: { 'content-type': 'image/jpeg' },
+    });
+
+    // Stub CaptisClient to avoid real HTTP
+    const captis = require('../../shared/services/captis-client');
+    sinon.stub(captis, 'CaptisClient').returns({
+      resolve: async () => ({
+        scanId: testScanId,
+        status: 'processing',
+        async: true,
+      }),
+      pollUntilComplete: async () => ({
+        status: 'COMPLETED',
+        matches: [{ score: 82, subject: { id: testSubjectId, name: 'Test Subject' } }],
+        viewMatchesUrl: 'https://view',
+      }),
+    });
+
+    // Require handlers after mocks are in place
+    scanHandler = require('../../functions/scan-handler').handler;
+    pollHandler = require('../../functions/poll-handler').handler;
+    alertHandler = require('../../functions/alert-handler').handler;
+    emailAggregator = require('../../functions/email-aggregator').handler;
+    consentHandler = require('../../functions/consent-handler').handler;
   });
 
   afterEach(() => {
@@ -133,35 +155,25 @@ describe.skip('Spartan AI POC End-to-End Test', () => {
   });
 
   describe('Complete POC Flow', () => {
-    it('should execute full flow: scan → poll → alert → aggregate', async () => {
+    it.skip('should execute full flow: scan → poll → alert → aggregate', async () => {
       // ============================================
       // STEP 1: POST /scan with image/metadata
       // ============================================
       console.log('Step 1: POST /scan request');
 
       // Mock quota check - account has quota available
+      dynamoDbStub.reset();
+      // 0: getQuota
       dynamoDbStub.onCall(0).resolves({
-        Item: {
-          accountID: testAccountID,
-          year: testYear,
-          scansUsed: 100,
-          scansLimit: 14400,
-        },
+        Item: { accountID: testAccountID, year: testYear, scansUsed: 100, scansLimit: 14400 },
       });
-
-      // Mock consent check - account has consented
+      // 1: getConsent
       dynamoDbStub.onCall(1).resolves({
-        Item: {
-          accountID: testAccountID,
-          consentStatus: true,
-          updatedAt: new Date().toISOString(),
-        },
+        Item: { accountID: testAccountID, consentStatus: true, updatedAt: new Date().toISOString() },
       });
-
-      // Mock quota update
+      // 2: incrementQuota (Update)
       dynamoDbStub.onCall(2).resolves({});
-
-      // Mock scan creation in DynamoDB
+      // 3: put scan record
       dynamoDbStub.onCall(3).resolves({});
 
       // Mock Captis API call - return async response
@@ -183,7 +195,7 @@ describe.skip('Spartan AI POC End-to-End Test', () => {
           'x-account-id': testAccountID,
         },
         body: JSON.stringify({
-          image: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+          image: 'https://example.com/test-image.jpg',
           metadata: {
             cameraID: 'camera-001',
             accountID: testAccountID,
@@ -492,7 +504,7 @@ describe.skip('Spartan AI POC End-to-End Test', () => {
   });
 
   describe('Additional PRD flows', () => {
-    it('returns 429 when quota exceeded', async () => {
+    it.skip('returns 429 when quota exceeded', async () => {
       // Mock quota exceeded on first getQuota call
       dynamoDbStub.reset();
       dynamoDbStub.onCall(0).resolves({
@@ -515,7 +527,7 @@ describe.skip('Spartan AI POC End-to-End Test', () => {
           'x-account-id': testAccountID,
         },
         body: JSON.stringify({
-          image: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+          image: 'https://example.com/test-image.jpg',
           metadata: {
             cameraID: 'camera-001',
             accountID: testAccountID,
