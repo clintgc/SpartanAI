@@ -2,7 +2,8 @@
   "name": "scan-list-handler",
   "version": "1.0.0",
   "description": "Lambda handler for listing scans",
-  "main": "index.js",
+  "type": "commonjs",
+  "main": "index.ts",
   "dependencies": {
     "spartan-ai-shared": "file:../../shared"
   },

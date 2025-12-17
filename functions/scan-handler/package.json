@@ -2,7 +2,8 @@
   "name": "scan-handler",
   "version": "1.0.0",
   "description": "Lambda handler for scan requests",
-  "main": "index.js",
+  "type": "commonjs",
+  "main": "index.ts",
   "scripts": {
     "build": "tsc",
     "test": "jest"
