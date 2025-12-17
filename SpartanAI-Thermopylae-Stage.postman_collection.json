@@ -1,0 +1,121 @@
+{
+  "info": {
+    "name": "SpartanAI Thermopylae-Stage",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Smoke test collection for Thermopylae-Stage deployment"
+  },
+  "item": [
+    {
+      "name": "GET scans",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "x-api-key", "value": "gHpRowMGemasl3kp73vuv94KLI14f0hU1t5sNDyl" },
+          { "key": "x-account-id", "value": "550e8400-e29b-41d4-a716-446655440000" }
+        ],
+        "url": {
+          "raw": "https://yedpdu8io5.execute-api.us-east-1.amazonaws.com/v1/api/v1/scans?accountID=550e8400-e29b-41d4-a716-446655440000",
+          "protocol": "https",
+          "host": ["yedpdu8io5","execute-api","us-east-1","amazonaws","com"],
+          "path": ["v1","api","v1","scans"],
+          "query": [
+            {"key": "accountID", "value": "550e8400-e29b-41d4-a716-446655440000", "description": "Must match x-account-id header"}
+          ]
+        },
+        "description": "List scans for authenticated account. Requires both x-account-id header and matching accountID query parameter."
+      }
+    },
+    {
+      "name": "PUT consent",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "x-api-key", "value": "gHpRowMGemasl3kp73vuv94KLI14f0hU1t5sNDyl" },
+          { "key": "x-account-id", "value": "550e8400-e29b-41d4-a716-446655440000" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"consent\":true}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://yedpdu8io5.execute-api.us-east-1.amazonaws.com/v1/api/v1/consent",
+          "protocol": "https",
+          "host": ["yedpdu8io5","execute-api","us-east-1","amazonaws","com"],
+          "path": ["v1","api","v1","consent"]
+        },
+        "description": "Update consent status for account"
+      }
+    },
+    {
+      "name": "POST scan",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "x-api-key", "value": "gHpRowMGemasl3kp73vuv94KLI14f0hU1t5sNDyl" },
+          { "key": "x-account-id", "value": "550e8400-e29b-41d4-a716-446655440000" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"image\": \"https://s.abcnews.com/images/US/decarlos-brown-ht-jef-250909_1757430530395_hpEmbed_4x5_992.jpg\",\n  \"metadata\": {\n    \"cameraID\": \"test-cam\",\n    \"accountID\": \"550e8400-e29b-41d4-a716-446655440000\",\n    \"location\": {\"lat\": 37.7749, \"lon\": -122.4194},\n    \"timestamp\": \"2025-12-16T12:00:00Z\"\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://yedpdu8io5.execute-api.us-east-1.amazonaws.com/v1/api/v1/scan",
+          "protocol": "https",
+          "host": ["yedpdu8io5","execute-api","us-east-1","amazonaws","com"],
+          "path": ["v1","api","v1","scan"]
+        },
+        "description": "Submit scan request with image URL. Returns scanId and status (COMPLETED/PROCESSING)."
+      }
+    },
+    {
+      "name": "GET scan detail",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "x-api-key", "value": "gHpRowMGemasl3kp73vuv94KLI14f0hU1t5sNDyl" },
+          { "key": "x-account-id", "value": "550e8400-e29b-41d4-a716-446655440000" }
+        ],
+        "url": {
+          "raw": "https://yedpdu8io5.execute-api.us-east-1.amazonaws.com/v1/api/v1/scan/efd2713c-076c-4795-8025-14223ed33b97",
+          "protocol": "https",
+          "host": ["yedpdu8io5","execute-api","us-east-1","amazonaws","com"],
+          "path": ["v1","api","v1","scan","efd2713c-076c-4795-8025-14223ed33b97"],
+          "variable": [
+            {"key": "scanId", "value": "efd2713c-076c-4795-8025-14223ed33b97", "description": "Replace with actual scanId from POST scan response"}
+          ]
+        },
+        "description": "Get scan details by scanId. Requires authorization (x-account-id must match scan's accountID)."
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://yedpdu8io5.execute-api.us-east-1.amazonaws.com/v1",
+      "type": "string"
+    },
+    {
+      "key": "apiKey",
+      "value": "gHpRowMGemasl3kp73vuv94KLI14f0hU1t5sNDyl",
+      "type": "string"
+    },
+    {
+      "key": "accountId",
+      "value": "550e8400-e29b-41d4-a716-446655440000",
+      "type": "string"
+    }
+  ]
+}
+
