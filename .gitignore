@@ -10,8 +10,10 @@ dist/
 downloads/
 eggs/
 .eggs/
+# Python lib directories (but not TypeScript infrastructure code)
 lib/
 lib64/
+!spartan-ai/infrastructure/lib/
 parts/
 sdist/
 var/
