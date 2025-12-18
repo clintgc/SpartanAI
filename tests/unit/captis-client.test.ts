@@ -90,6 +90,46 @@ describe('CaptisClient', () => {
     );
   });
 
+  it('pollScan() uses X-API-Key header instead of query parameter', async () => {
+    const scanResponse = { id: 'scan-123', status: 'COMPLETED', matches: [] };
+    mockAxiosGet.mockResolvedValue({ data: scanResponse });
+
+    const client = new CaptisClient({ baseUrl: 'https://api.test', accessKey: 'test-key-123' });
+    const result = await client.pollScan('scan-123');
+
+    expect(result).toEqual(scanResponse);
+    expect(mockAxiosGet).toHaveBeenCalledWith(
+      '/pub/asi/v4/scan/scan-123',
+      {
+        headers: {
+          'X-API-Key': 'test-key-123',
+        },
+      }
+    );
+    // Verify it does NOT include accessKey in the URL
+    const url = mockAxiosGet.mock.calls[0][0] as string;
+    expect(url).not.toContain('accessKey');
+    expect(url).not.toContain('test-key-123');
+  });
+
+  it('pollScan() handles 307 redirect', async () => {
+    const redirectError = Object.assign(new Error('redirect'), {
+      response: { status: 307, headers: { location: 'https://new-api.test/pub' } },
+      isAxiosError: true,
+      toJSON: () => ({}),
+    }) as unknown as AxiosError;
+    mockAxiosGet
+      .mockRejectedValueOnce(redirectError)
+      .mockResolvedValueOnce({ data: { id: 'scan-redirect', status: 'COMPLETED' } });
+
+    const client = new CaptisClient({ baseUrl: 'https://api.test', accessKey: 'key' });
+    const result = await client.pollScan('scan-123');
+
+    expect(result.id).toBe('scan-redirect');
+    expect(mockAxiosGet).toHaveBeenCalledTimes(2);
+    expect(mockInstance.defaults.baseURL).toBe('https://new-api.test');
+  });
+
   it('pollUntilComplete stops when completed and backs off on pending', async () => {
     const client = new CaptisClient({ baseUrl: 'https://api.test', accessKey: 'key' });
     // Stub pollScan and sleep

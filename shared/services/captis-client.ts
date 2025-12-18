@@ -167,12 +167,13 @@ export class CaptisClient {
    */
   async pollScan(scanId: string): Promise<CaptisResolveResponse> {
     try {
-      const params = new URLSearchParams({
-        accessKey: this.accessKey,
-      });
-
       const response = await this.client.get<CaptisResolveResponse>(
-        `/pub/asi/v4/scan/${scanId}?${params.toString()}`
+        `/pub/asi/v4/scan/${scanId}`,
+        {
+          headers: {
+            'X-API-Key': this.accessKey,
+          },
+        }
       );
 
       return response.data;
