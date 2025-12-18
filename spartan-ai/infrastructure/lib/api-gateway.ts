@@ -407,6 +407,75 @@ export class ApiGateway extends Construct {
       ],
     });
 
+    // GET/PUT /api/v1/thresholds - Get/Update threat score thresholds
+    const thresholdsResource = api.addResource('thresholds');
+    thresholdsResource.addMethod('GET', new apigateway.LambdaIntegration(props.lambdaFunctions.thresholdHandler), {
+      apiKeyRequired: true,
+      methodResponses: [
+        {
+          statusCode: '200',
+          responseParameters: {
+            'method.response.header.Access-Control-Allow-Origin': true,
+          },
+        },
+        {
+          statusCode: '400',
+          responseModels: {
+            'application/json': errorResponseModel,
+          },
+          responseParameters: {
+            'method.response.header.Access-Control-Allow-Origin': true,
+          },
+        },
+      ],
+    });
+    thresholdsResource.addMethod('PUT', new apigateway.LambdaIntegration(props.lambdaFunctions.thresholdHandler), {
+      apiKeyRequired: true,
+      methodResponses: [
+        {
+          statusCode: '200',
+          responseParameters: {
+            'method.response.header.Access-Control-Allow-Origin': true,
+          },
+        },
+        {
+          statusCode: '400',
+          responseModels: {
+            'application/json': errorResponseModel,
+          },
+          responseParameters: {
+            'method.response.header.Access-Control-Allow-Origin': true,
+          },
+        },
+      ],
+    });
+    thresholdsResource.addMethod('OPTIONS', new apigateway.MockIntegration({
+      integrationResponses: [
+        {
+          statusCode: '200',
+          responseParameters: {
+            'method.response.header.Access-Control-Allow-Origin': "'*'",
+            'method.response.header.Access-Control-Allow-Headers': "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Account-ID'",
+            'method.response.header.Access-Control-Allow-Methods': "'GET,PUT,OPTIONS'",
+          },
+        },
+      ],
+      requestTemplates: {
+        'application/json': '{"statusCode": 200}',
+      },
+    }), {
+      methodResponses: [
+        {
+          statusCode: '200',
+          responseParameters: {
+            'method.response.header.Access-Control-Allow-Origin': true,
+            'method.response.header.Access-Control-Allow-Headers': true,
+            'method.response.header.Access-Control-Allow-Methods': true,
+          },
+        },
+      ],
+    });
+
     // POST /api/v1/webhooks - Register webhook
     const webhooksResource = api.addResource('webhooks');
     webhooksResource.addMethod('POST', new apigateway.LambdaIntegration(props.lambdaFunctions.webhookRegistrationHandler), {

@@ -1,0 +1,69 @@
+Subject: GET /scan/{id} endpoint not returning JSON payload - Authentication format question
+
+Hi Captis Support Team,
+
+We're experiencing an issue with the GET /scan/{id} endpoint not returning the expected JSON payload. We're getting 403 Forbidden errors when trying to poll for scan results.
+
+**Current Request Format:**
+We're trying to match the format that works for the `/scans` (list) endpoint:
+
+Working example (list endpoint):
+```
+GET https://asi-api.solveacrime.com/pub/asi/v4/scans?accessKey={accessKey}&page=0&size=5
+```
+
+Our request (single scan endpoint):
+```
+GET https://asi-api.solveacrime.com/pub/asi/v4/scan/{scanId}?accessKey={accessKey}
+```
+
+**What's Happening:**
+- The `/scans` endpoint works correctly with `accessKey` as a query parameter
+- The `/scan/{scanId}` endpoint returns 403 Forbidden errors with the same format
+- The POST /resolve endpoint works correctly with our access key
+- We've verified our access key is valid (it works for POST and /scans GET requests)
+
+**What we've tried:**
+1. `accessKey` as query parameter: `GET /scan/{scanId}?accessKey={key}` → 403
+2. `X-API-Key` header: `GET /scan/{scanId}` with `X-API-Key: {key}` header → 403
+
+**Questions:**
+1. What is the correct authentication format for the GET /scan/{id} endpoint?
+2. Should we use X-API-Key header, query parameter, or both?
+3. Are there any additional headers or parameters required for GET requests that differ from POST requests?
+
+**Example Requests:**
+
+Working (list endpoint):
+```bash
+curl -i -k -X GET "https://asi-api.solveacrime.com/pub/asi/v4/scans?accessKey=485989b1-7960-4932-bb91-cd15d406df33&page=0&size=5"
+```
+
+Not working (single scan endpoint):
+```bash
+curl -i -k -X GET "https://asi-api.solveacrime.com/pub/asi/v4/scan/{scanId}?accessKey=485989b1-7960-4932-bb91-cd15d406df33"
+```
+
+**Expected Response:**
+We expect a JSON payload with scan results, similar to:
+```json
+{
+  "id": "...",
+  "status": "...",
+  "matches": [...],
+  ...
+}
+```
+
+**Actual Response:**
+We're receiving 403 Forbidden errors, preventing us from retrieving scan results.
+
+Could you please clarify the correct authentication method for GET requests to the /scan/{id} endpoint? We want to ensure we're following your API specifications correctly.
+
+Thank you for your assistance.
+
+Best regards,
+[Your Name]
+[Your Company]
+[Contact Information]
+

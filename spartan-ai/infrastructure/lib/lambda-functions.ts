@@ -27,6 +27,7 @@ export class LambdaFunctions extends Construct {
   public readonly consentHandler: lambda.Function;
   public readonly webhookRegistrationHandler: lambda.Function;
   public readonly gdprDeletionHandler: lambda.Function;
+  public readonly thresholdHandler: lambda.Function;
 
   constructor(scope: Construct, id: string, props: LambdaFunctionsProps) {
     super(scope, id);
@@ -183,6 +184,19 @@ export class LambdaFunctions extends Construct {
       timeout: cdk.Duration.minutes(5), // May take time to delete all data
     });
 
+    // Threshold Handler Lambda
+    this.thresholdHandler = new lambdaNodejs.NodejsFunction(this, 'ThresholdHandler', {
+      ...defaultLambdaProps,
+      functionName: 'spartan-ai-threshold-handler',
+      entry: path.join(rootFunctionsPath, 'threshold-handler/index.ts'),
+      handler: 'handler',
+      timeout: cdk.Duration.seconds(5),
+      environment: {
+        ...defaultLambdaProps.environment,
+        GLOBAL_THRESHOLDS_SSM_PATH: '/spartan-ai/threat-thresholds/global',
+      },
+    });
+
     // Grant permissions to DynamoDB tables
     props.tables.scansTable.grantReadWriteData(this.scanHandler);
     props.tables.scansTable.grantReadWriteData(this.pollHandler);
@@ -203,6 +217,7 @@ export class LambdaFunctions extends Construct {
     props.tables.deviceTokensTable.grantReadData(this.alertHandler);
 
     props.tables.accountProfilesTable.grantReadData(this.emailAggregator);
+    props.tables.accountProfilesTable.grantReadWriteData(this.thresholdHandler);
 
     // Grant GDPR deletion handler permissions
     props.tables.scansTable.grantReadWriteData(this.gdprDeletionHandler);
@@ -271,6 +286,7 @@ export class LambdaFunctions extends Construct {
     this.alertHandler.addToRolePolicy(ssmPolicy);
     this.emailAggregator.addToRolePolicy(ssmPolicy);
     this.consentHandler.addToRolePolicy(ssmPolicy);
+    this.thresholdHandler.addToRolePolicy(ssmPolicy);
 
     // Grant SNS publish permission for consent handler
     props.snsTopics.consentUpdateTopic.grantPublish(this.consentHandler);

@@ -8,6 +8,7 @@ export interface SsmParametersProps {
 
 export class SsmParameters extends Construct {
   public readonly captisAccessKeyParameter: ssm.StringParameter;
+  public readonly globalThresholdsParameter: ssm.StringParameter;
 
   constructor(scope: Construct, id: string, props?: SsmParametersProps) {
     super(scope, id);
@@ -22,10 +23,29 @@ export class SsmParameters extends Construct {
       type: ssm.ParameterType.STRING,
     });
 
+    // Create SSM Parameter for Global Threat Thresholds
+    const defaultThresholds = JSON.stringify({
+      highThreshold: 89,
+      mediumThreshold: 75,
+      lowThreshold: 50,
+    });
+
+    this.globalThresholdsParameter = new ssm.StringParameter(this, 'GlobalThresholds', {
+      parameterName: '/spartan-ai/threat-thresholds/global',
+      description: 'Global default threat score thresholds (highThreshold, mediumThreshold, lowThreshold)',
+      stringValue: defaultThresholds,
+      type: ssm.ParameterType.STRING,
+    });
+
     // Output the parameter name for reference
     new cdk.CfnOutput(this, 'CaptisAccessKeyParameterName', {
       value: this.captisAccessKeyParameter.parameterName,
       description: 'SSM Parameter name for Captis access key',
+    });
+
+    new cdk.CfnOutput(this, 'GlobalThresholdsParameterName', {
+      value: this.globalThresholdsParameter.parameterName,
+      description: 'SSM Parameter name for global threat thresholds',
     });
   }
 }

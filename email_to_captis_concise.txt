@@ -1,0 +1,37 @@
+Subject: GET /scan/{id} returning 403 Forbidden - Authentication format question
+
+Hi Captis Support,
+
+We're experiencing 403 Forbidden errors when calling the GET /scan/{id} endpoint to retrieve scan results. The POST /resolve endpoint works correctly with our access key, but GET requests are being rejected.
+
+**Current Request:**
+```
+GET https://asi-api.solveacrime.com/pub/asi/v4/scan/{scanId}
+Headers:
+  X-API-Key: 485989b1-7960-4932-bb91-cd15d406df33
+  Content-Type: application/json
+```
+
+**Response:** 403 Forbidden (no JSON payload returned)
+
+**What we've tried:**
+1. X-API-Key header (as shown above) → 403
+2. accessKey as query parameter: `?accessKey={key}` → 403
+
+**Questions:**
+- What is the correct authentication format for GET /scan/{id}?
+- Does it differ from POST /resolve (which works with X-API-Key header)?
+- Are there additional required headers or parameters?
+
+**Example curl command:**
+```bash
+curl -H "X-API-Key: 485989b1-7960-4932-bb91-cd15d406df33" \
+     -H "Content-Type: application/json" \
+     "https://asi-api.solveacrime.com/pub/asi/v4/scan/{scanId}"
+```
+
+Could you please confirm the correct authentication method for GET requests? Our POST requests work fine, so we believe the access key is valid.
+
+Thanks,
+[Your Name]
+

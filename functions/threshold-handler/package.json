@@ -1,0 +1,8 @@
+{
+  "name": "threshold-handler",
+  "version": "1.0.0",
+  "description": "Lambda handler for managing threat score thresholds",
+  "main": "index.ts",
+  "type": "commonjs"
+}
+

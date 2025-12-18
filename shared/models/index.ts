@@ -117,5 +117,21 @@ export interface AccountProfile {
   unsubscribeToken?: string; // For email unsubscribe links
   emailOptOut?: boolean; // GDPR compliance: User has opted out of marketing emails
   emailOptOutAt?: string; // Timestamp when user opted out
+  threatThresholds?: ThreatThresholdConfig; // User-level threshold overrides
+}
+
+export interface ThreatThresholdConfig {
+  highThreshold: number; // Score above which HIGH threat alerts are triggered (default: 89)
+  mediumThreshold: number; // Score above which MEDIUM threat alerts are triggered (default: 75)
+  lowThreshold: number; // Score above which LOW threat alerts are triggered (default: 50)
+  updatedAt?: string; // Timestamp when thresholds were last updated
+  updatedBy?: 'user' | 'service' | 'global'; // Who set these thresholds
+}
+
+export interface ServiceThresholdConfig {
+  serviceId: string; // Service identifier (e.g., 'captis', 'rekognition')
+  thresholds: ThreatThresholdConfig;
+  createdAt: string;
+  updatedAt: string;
 }
 

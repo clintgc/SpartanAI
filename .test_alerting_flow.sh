@@ -116,19 +116,38 @@ if [ "$STATUS" != "COMPLETED" ]; then
   echo ""
 fi
 
-# Determine expected alerting behavior (using bash arithmetic)
+# Get current thresholds (defaults shown, but may be customized per account)
+echo "Getting current thresholds for account..."
+THRESHOLDS_RESPONSE=$(curl -s "${API}/api/v1/thresholds" "${HDR[@]}" 2>/dev/null || echo "")
+if [ -n "$THRESHOLDS_RESPONSE" ] && echo "$THRESHOLDS_RESPONSE" | jq -e '.thresholds' >/dev/null 2>&1; then
+  HIGH_THRESHOLD=$(echo "$THRESHOLDS_RESPONSE" | jq -r '.thresholds.highThreshold // 89')
+  MEDIUM_THRESHOLD=$(echo "$THRESHOLDS_RESPONSE" | jq -r '.thresholds.mediumThreshold // 75')
+  LOW_THRESHOLD=$(echo "$THRESHOLDS_RESPONSE" | jq -r '.thresholds.lowThreshold // 50')
+  echo "   Using account-specific thresholds: HIGH=$HIGH_THRESHOLD, MEDIUM=$MEDIUM_THRESHOLD, LOW=$LOW_THRESHOLD"
+else
+  HIGH_THRESHOLD=89
+  MEDIUM_THRESHOLD=75
+  LOW_THRESHOLD=50
+  echo "   Using default thresholds: HIGH=$HIGH_THRESHOLD, MEDIUM=$MEDIUM_THRESHOLD, LOW=$LOW_THRESHOLD"
+fi
+
+# Determine expected alerting behavior (using configurable thresholds)
 TOP_SCORE_INT=${TOP_SCORE%.*}  # Convert to integer
-if [ "$TOP_SCORE_INT" -gt 89 ]; then
-  EXPECTED_ALERTS="HIGH threat (>89%)"
+HIGH_THRESHOLD_INT=${HIGH_THRESHOLD%.*}
+MEDIUM_THRESHOLD_INT=${MEDIUM_THRESHOLD%.*}
+LOW_THRESHOLD_INT=${LOW_THRESHOLD%.*}
+
+if [ "$TOP_SCORE_INT" -gt "$HIGH_THRESHOLD_INT" ]; then
+  EXPECTED_ALERTS="HIGH threat (>${HIGH_THRESHOLD}%)"
   EXPECTED_ACTIONS="SMS (Twilio) + FCM + Webhook + Location logging"
-elif [ "$TOP_SCORE_INT" -ge 75 ] && [ "$TOP_SCORE_INT" -le 89 ]; then
-  EXPECTED_ALERTS="MEDIUM threat (75-89%)"
+elif [ "$TOP_SCORE_INT" -gt "$MEDIUM_THRESHOLD_INT" ] && [ "$TOP_SCORE_INT" -le "$HIGH_THRESHOLD_INT" ]; then
+  EXPECTED_ALERTS="MEDIUM threat (${MEDIUM_THRESHOLD}-${HIGH_THRESHOLD}%)"
   EXPECTED_ACTIONS="FCM only"
-elif [ "$TOP_SCORE_INT" -ge 50 ] && [ "$TOP_SCORE_INT" -lt 75 ]; then
-  EXPECTED_ALERTS="LOW threat (50-74%)"
+elif [ "$TOP_SCORE_INT" -gt "$LOW_THRESHOLD_INT" ] && [ "$TOP_SCORE_INT" -le "$MEDIUM_THRESHOLD_INT" ]; then
+  EXPECTED_ALERTS="LOW threat (${LOW_THRESHOLD}-${MEDIUM_THRESHOLD}%)"
   EXPECTED_ACTIONS="Weekly email aggregation only"
 else
-  EXPECTED_ALERTS="No threat (<50%)"
+  EXPECTED_ALERTS="No threat (<${LOW_THRESHOLD}%)"
   EXPECTED_ACTIONS="No alerts"
 fi
 
@@ -151,25 +170,25 @@ echo "   - Look for: 'topScore' and 'matchLevel' in logs"
 echo ""
 echo "2. ${GREEN}Alert Handler${NC} (/aws/lambda/spartan-ai-alert-handler):"
 echo "   - Look for: 'Alert handler invoked'"
-if [ "$TOP_SCORE_INT" -gt 89 ]; then
+if [ "$TOP_SCORE_INT" -gt "$HIGH_THRESHOLD_INT" ]; then
   echo "   - Look for: 'SMS sent: <messageSid>' (if USER_PHONE_NUMBER is configured)"
   echo "   - Look for: 'FCM notifications sent' (if device tokens are registered)"
 fi
-if [ "$TOP_SCORE_INT" -ge 75 ]; then
+if [ "$TOP_SCORE_INT" -gt "$MEDIUM_THRESHOLD_INT" ]; then
   echo "   - Look for: 'FCM notifications sent' (if device tokens are registered)"
 fi
 echo ""
 echo "3. ${GREEN}Webhook Dispatcher${NC} (/aws/lambda/spartan-ai-webhook-dispatcher):"
-if [ "$TOP_SCORE_INT" -gt 89 ]; then
+if [ "$TOP_SCORE_INT" -gt "$HIGH_THRESHOLD_INT" ]; then
   echo "   - Look for: 'Webhook dispatcher invoked'"
   echo "   - Look for: 'Webhook sent to' (if webhooks are registered)"
 fi
 echo ""
 echo "4. ${GREEN}SNS Topics${NC} (check SNS metrics in CloudWatch):"
-if [ "$TOP_SCORE_INT" -gt 89 ]; then
+if [ "$TOP_SCORE_INT" -gt "$HIGH_THRESHOLD_INT" ]; then
   echo "   - spartan-ai-high-threat-alerts: Should have 1+ published messages"
   echo "   - spartan-ai-webhook-notifications: Should have 1+ published messages"
-elif [ "$TOP_SCORE_INT" -ge 75 ] && [ "$TOP_SCORE_INT" -le 89 ]; then
+elif [ "$TOP_SCORE_INT" -gt "$MEDIUM_THRESHOLD_INT" ] && [ "$TOP_SCORE_INT" -le "$HIGH_THRESHOLD_INT" ]; then
   echo "   - spartan-ai-medium-threat-alerts: Should have 1+ published messages"
 fi
 echo ""

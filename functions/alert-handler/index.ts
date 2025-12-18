@@ -1,6 +1,7 @@
 import { SNSEvent } from 'aws-lambda';
 import { TwilioClient } from '../../shared/services/twilio-client';
 import { DynamoDbService } from '../../shared/services/dynamodb-service';
+import { ThresholdService } from '../../shared/services/threshold-service';
 import { FcmClient } from '../../shared/services/fcm-client';
 import { AlertPayload } from '../../shared/models';
 import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
@@ -10,6 +11,7 @@ import 'source-map-support/register';
 
 const docClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const dbService = new DynamoDbService(process.env.TABLE_PREFIX || 'spartan-ai');
+const thresholdService = new ThresholdService(dbService);
 const ssmClient = new SSMClient({});
 
 // Initialize FCM Client (lazy initialization)
@@ -106,8 +108,11 @@ export const handler = async (event: SNSEvent): Promise<void> => {
       // Update alert payload with actual location
       alertPayload.threatLocation = location;
 
-      // High threat (>89%) - Send SMS + FCM + webhook + log location
-      if (topScore > 89) {
+      // Get configurable thresholds for this account
+      const thresholds = await thresholdService.getThresholds(accountID, 'captis');
+
+      // High threat - Send SMS + FCM + webhook + log location
+      if (topScore > thresholds.highThreshold) {
         // Send SMS via Twilio
         // Read Twilio credentials from SSM if parameter paths are provided, otherwise use env vars
         let twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -193,8 +198,8 @@ export const handler = async (event: SNSEvent): Promise<void> => {
             location
           );
         }
-      } else if (topScore >= 75 && topScore <= 89) {
-        // Medium threat (75-89%) - FCM in-app notification only (via SNS)
+      } else if (topScore > thresholds.mediumThreshold && topScore <= thresholds.highThreshold) {
+        // Medium threat - FCM in-app notification only (via SNS)
         console.log(`Processing medium threat alert (${topScore}%) - FCM notification only`);
         await sendFcmNotification(alertPayload, 'MEDIUM');
       }

@@ -1,6 +1,7 @@
 import { EventBridgeEvent } from 'aws-lambda';
 import { DynamoDbService } from '../../shared/services/dynamodb-service';
 import { CaptisClient } from '../../shared/services/captis-client';
+import { ThresholdService } from '../../shared/services/threshold-service';
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
 import { DynamoDBDocumentClient, UpdateCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
@@ -9,6 +10,7 @@ import 'source-map-support/register';
 const docClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const snsClient = new SNSClient({});
 const dbService = new DynamoDbService(process.env.TABLE_PREFIX || 'spartan-ai');
+const thresholdService = new ThresholdService(dbService);
 
 interface PollEvent {
   scanId: string;
@@ -31,9 +33,18 @@ export const handler = async (event: EventBridgeEvent<'PollScan', PollEvent>): P
     // Poll until complete (max 120 seconds)
     const result = await captisClient.pollUntilComplete(captisId, 120000, 5000);
 
+    // Get configurable thresholds for this account
+    const thresholds = await thresholdService.getThresholds(accountID, 'captis');
+    
     // Update scan record
     const topScore = result.matches?.[0]?.score || 0;
-    const matchLevel = topScore > 89 ? 'HIGH' : topScore > 74 ? 'MEDIUM' : topScore > 49 ? 'LOW' : undefined;
+    const matchLevel = topScore > thresholds.highThreshold 
+      ? 'HIGH' 
+      : topScore > thresholds.mediumThreshold 
+        ? 'MEDIUM' 
+        : topScore > thresholds.lowThreshold 
+          ? 'LOW' 
+          : undefined;
 
     await docClient.send(
       new UpdateCommand({
@@ -66,7 +77,7 @@ export const handler = async (event: EventBridgeEvent<'PollScan', PollEvent>): P
         accountID,
       };
 
-      if (topScore > 89) {
+      if (topScore > thresholds.highThreshold) {
         // High threat - SMS + FCM + webhook
         await snsClient.send(
           new PublishCommand({
@@ -74,7 +85,7 @@ export const handler = async (event: EventBridgeEvent<'PollScan', PollEvent>): P
             Message: JSON.stringify(alertPayload),
           })
         );
-      } else if (topScore > 74) {
+      } else if (topScore > thresholds.mediumThreshold) {
         // Medium threat - FCM only
         await snsClient.send(
           new PublishCommand({
@@ -82,7 +93,7 @@ export const handler = async (event: EventBridgeEvent<'PollScan', PollEvent>): P
             Message: JSON.stringify(alertPayload),
           })
         );
-      } else if (topScore > 49) {
+      } else if (topScore > thresholds.lowThreshold) {
         // Low threat - will be aggregated in weekly email
         // Store for email aggregation
         console.log(`Low threat match (${topScore}%) stored for weekly aggregation`);
@@ -109,7 +120,7 @@ export const handler = async (event: EventBridgeEvent<'PollScan', PollEvent>): P
       }
 
       // Publish to webhook topic if high threat
-      if (topScore > 89) {
+      if (topScore > thresholds.highThreshold) {
         await snsClient.send(
           new PublishCommand({
             TopicArn: process.env.WEBHOOK_TOPIC_ARN!,
