@@ -90,7 +90,7 @@ describe('CaptisClient', () => {
     );
   });
 
-  it('pollScan() uses X-API-Key header instead of query parameter', async () => {
+  it('pollScan() uses accessKey as query parameter (matching /scans endpoint format)', async () => {
     const scanResponse = { id: 'scan-123', status: 'COMPLETED', matches: [] };
     mockAxiosGet.mockResolvedValue({ data: scanResponse });
 
@@ -99,17 +99,12 @@ describe('CaptisClient', () => {
 
     expect(result).toEqual(scanResponse);
     expect(mockAxiosGet).toHaveBeenCalledWith(
-      '/pub/asi/v4/scan/scan-123',
-      {
-        headers: {
-          'X-API-Key': 'test-key-123',
-        },
-      }
+      '/pub/asi/v4/scan/scan-123?accessKey=test-key-123'
     );
-    // Verify it does NOT include accessKey in the URL
+    // Verify accessKey is in the URL as query parameter
     const url = mockAxiosGet.mock.calls[0][0] as string;
-    expect(url).not.toContain('accessKey');
-    expect(url).not.toContain('test-key-123');
+    expect(url).toContain('accessKey=test-key-123');
+    expect(url).toContain('/pub/asi/v4/scan/scan-123');
   });
 
   it('pollScan() handles 307 redirect', async () => {
