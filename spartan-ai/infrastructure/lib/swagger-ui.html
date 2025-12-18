@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spartan AI Security Service API Documentation</title>
+  <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui.css" />
+  <style>
+    html {
+      box-sizing: border-box;
+      overflow: -moz-scrollbars-vertical;
+      overflow-y: scroll;
+    }
+    *, *:before, *:after {
+      box-sizing: inherit;
+    }
+    body {
+      margin: 0;
+      background: #fafafa;
+    }
+    .swagger-ui .topbar {
+      background-color: #1f2937;
+    }
+    .swagger-ui .topbar .download-url-wrapper {
+      display: none;
+    }
+    .header {
+      background-color: #1f2937;
+      color: white;
+      padding: 20px;
+      text-align: center;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 24px;
+    }
+    .header p {
+      margin: 10px 0 0 0;
+      opacity: 0.9;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Spartan AI Security Service API</h1>
+    <p>Interactive API Documentation - OpenAPI 3.0</p>
+  </div>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-bundle.js"></script>
+  <script src="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-standalone-preset.js"></script>
+  <script>
+    window.onload = function() {
+      // Load the OpenAPI spec from S3
+      const specUrl = './api-docs/openapi.json';
+      
+      const ui = SwaggerUIBundle({
+        url: specUrl,
+        dom_id: '#swagger-ui',
+        deepLinking: true,
+        presets: [
+          SwaggerUIBundle.presets.apis,
+          SwaggerUIStandalonePreset
+        ],
+        plugins: [
+          SwaggerUIBundle.plugins.DownloadUrl
+        ],
+        layout: "StandaloneLayout",
+        tryItOutEnabled: true,
+        requestInterceptor: (request) => {
+          // Add API key header if available
+          const apiKey = localStorage.getItem('spartan-ai-api-key');
+          if (apiKey && request.headers) {
+            request.headers['x-api-key'] = apiKey;
+          }
+          return request;
+        },
+        onComplete: () => {
+          // Add API key input field
+          const apiKeyInput = document.createElement('div');
+          apiKeyInput.style.cssText = 'padding: 20px; background: #fff; border-bottom: 1px solid #ddd;';
+          apiKeyInput.innerHTML = `
+            <label style="font-weight: bold; margin-right: 10px;">API Key:</label>
+            <input type="password" id="api-key-input" placeholder="Enter your API key" 
+                   style="padding: 8px; width: 300px; border: 1px solid #ccc; border-radius: 4px;"
+                   value="${localStorage.getItem('spartan-ai-api-key') || ''}">
+            <button onclick="saveApiKey()" style="padding: 8px 16px; margin-left: 10px; background: #1f2937; color: white; border: none; border-radius: 4px; cursor: pointer;">Save</button>
+            <span id="api-key-status" style="margin-left: 10px; color: green;"></span>
+          `;
+          document.querySelector('.swagger-ui').insertBefore(apiKeyInput, document.querySelector('.swagger-ui').firstChild);
+        }
+      });
+      
+      window.saveApiKey = function() {
+        const apiKey = document.getElementById('api-key-input').value;
+        if (apiKey) {
+          localStorage.setItem('spartan-ai-api-key', apiKey);
+          document.getElementById('api-key-status').textContent = '✓ Saved';
+          setTimeout(() => {
+            document.getElementById('api-key-status').textContent = '';
+          }, 2000);
+        }
+      };
+    };
+  </script>
+</body>
+</html>
+

@@ -43,4 +43,6 @@ Thumbs.db
 *.log
 .env
 .env.local
+.pr_body_*.txt
+.test_*.sh
 
