@@ -449,32 +449,7 @@ export class ApiGateway extends Construct {
         },
       ],
     });
-    thresholdsResource.addMethod('OPTIONS', new apigateway.MockIntegration({
-      integrationResponses: [
-        {
-          statusCode: '200',
-          responseParameters: {
-            'method.response.header.Access-Control-Allow-Origin': "'*'",
-            'method.response.header.Access-Control-Allow-Headers': "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Account-ID'",
-            'method.response.header.Access-Control-Allow-Methods': "'GET,PUT,OPTIONS'",
-          },
-        },
-      ],
-      requestTemplates: {
-        'application/json': '{"statusCode": 200}',
-      },
-    }), {
-      methodResponses: [
-        {
-          statusCode: '200',
-          responseParameters: {
-            'method.response.header.Access-Control-Allow-Origin': true,
-            'method.response.header.Access-Control-Allow-Headers': true,
-            'method.response.header.Access-Control-Allow-Methods': true,
-          },
-        },
-      ],
-    });
+    // Note: OPTIONS method is automatically created by defaultCorsPreflightOptions
 
     // POST /api/v1/webhooks - Register webhook
     const webhooksResource = api.addResource('webhooks');
