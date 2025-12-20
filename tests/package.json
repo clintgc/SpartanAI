@@ -5,8 +5,8 @@
   "type": "commonjs",
   "scripts": {
     "test": "jest",
-    "test:unit": "jest --testPathPattern=unit",
-    "test:integration": "jest --testPathPattern=integration",
+    "test:unit": "jest --testPathPatterns=unit",
+    "test:integration": "jest --testPathPatterns=integration",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:load": "artillery run tests/load/artillery.yml",

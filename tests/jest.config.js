@@ -4,8 +4,9 @@ module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   rootDir: path.resolve(__dirname),
-  roots: ['<rootDir>'],
-  testMatch: ['<rootDir>/unit/**/*.test.ts'],
+  testMatch: [
+    '**/unit/**/*.test.ts'
+  ],
   collectCoverageFrom: [
     '../functions/**/*.ts',
     '../shared/**/*.ts',
@@ -32,5 +33,10 @@ module.exports = {
   testEnvironmentOptions: {
     NODE_PATH: path.resolve(__dirname, '../node_modules'),
   },
+  // Ensure Jest can find all @jest packages from root node_modules
+  resolver: undefined,
+  // Use default test sequencer - this should prevent Jest from trying to resolve @jest/test-sequencer
+  // If @jest/test-sequencer is missing, this will use Jest's built-in default
+  testSequencer: undefined,
 };
 

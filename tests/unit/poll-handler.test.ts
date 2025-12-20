@@ -13,10 +13,25 @@ jest.mock('../../shared/services/captis-client', () => {
   };
 });
 
+const mockGetAccountProfile = jest.fn();
+
 jest.mock('../../shared/services/dynamodb-service', () => {
   return {
     DynamoDbService: jest.fn().mockImplementation(() => ({
       updateThreatLocation: mockUpdateThreatLocation,
+      getAccountProfile: mockGetAccountProfile,
+    })),
+  };
+});
+
+jest.mock('../../shared/services/threshold-service', () => {
+  return {
+    ThresholdService: jest.fn().mockImplementation(() => ({
+      getThresholds: jest.fn().mockResolvedValue({
+        highThreshold: 89,
+        mediumThreshold: 75,
+        lowThreshold: 50,
+      }),
     })),
   };
 });
@@ -64,6 +79,7 @@ describe('poll-handler', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockGetAccountProfile.mockResolvedValue(null); // Return null to use default thresholds
     process.env.SCANS_TABLE_NAME = 'test-scans';
     process.env.HIGH_THREAT_TOPIC_ARN = 'arn:high';
     process.env.MEDIUM_THREAT_TOPIC_ARN = 'arn:med';

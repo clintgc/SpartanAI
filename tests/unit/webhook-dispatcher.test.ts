@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { DynamoDbService } from '../../shared/services/dynamodb-service';
 
 const mockGetWebhookSubscriptions = jest.fn();
 
@@ -12,6 +13,7 @@ jest.mock('../../shared/services/dynamodb-service', () => {
 
 jest.mock('axios');
 
+// Import handler after mocks are set up
 import { handler } from '../../functions/webhook-dispatcher';
 
 describe('webhook-dispatcher', () => {
