@@ -1,0 +1,32 @@
+# Terraform Variables for Spartan AI Website
+# Copy this file to terraform.tfvars and update with your values
+
+domain_name = "spartan.tech"
+region      = "us-east-1"
+environment = "staging"
+
+# IMPORTANT: You need to create an ACM certificate first:
+# Option 1: Via AWS Console
+#   - Go to ACM in us-east-1 region
+#   - Request a public certificate
+#   - Domain: spartan.tech
+#   - SAN: www.spartan.tech
+#   - Validation: DNS
+#   - Copy the ARN here once created
+#
+# Option 2: Via AWS CLI (if you have permissions):
+#   aws acm request-certificate \
+#     --domain-name spartan.tech \
+#     --subject-alternative-names www.spartan.tech \
+#     --validation-method DNS \
+#     --region us-east-1
+#
+# Then update the ARN below:
+acm_certificate_arn = "REPLACE_WITH_YOUR_ACM_CERTIFICATE_ARN"
+
+tags = {
+  Project     = "SpartanAI"
+  Environment = "staging"
+  ManagedBy   = "Terraform"
+}
+

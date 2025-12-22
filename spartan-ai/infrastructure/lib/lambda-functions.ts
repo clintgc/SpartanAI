@@ -28,6 +28,7 @@ export class LambdaFunctions extends Construct {
   public readonly webhookRegistrationHandler: lambda.Function;
   public readonly gdprDeletionHandler: lambda.Function;
   public readonly thresholdHandler: lambda.Function;
+  public readonly demoRequestHandler: lambda.Function;
 
   constructor(scope: Construct, id: string, props: LambdaFunctionsProps) {
     super(scope, id);
@@ -196,6 +197,27 @@ export class LambdaFunctions extends Construct {
         GLOBAL_THRESHOLDS_SSM_PATH: '/spartan-ai/threat-thresholds/global',
       },
     });
+
+    // Demo Request Handler Lambda
+    this.demoRequestHandler = new lambdaNodejs.NodejsFunction(this, 'DemoRequestHandler', {
+      ...defaultLambdaProps,
+      functionName: 'spartan-ai-demo-request-handler',
+      entry: path.join(rootFunctionsPath, 'demo-request-handler/index.ts'),
+      handler: 'handler',
+      timeout: cdk.Duration.seconds(10),
+      environment: {
+        SENDER_EMAIL: 'noreply@spartan.tech',
+      },
+    });
+
+    // Grant SES permissions to send emails
+    this.demoRequestHandler.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ['ses:SendEmail', 'ses:SendRawEmail'],
+        resources: ['*'], // SES permissions are typically account-level
+      })
+    );
 
     // Grant permissions to DynamoDB tables
     props.tables.scansTable.grantReadWriteData(this.scanHandler);

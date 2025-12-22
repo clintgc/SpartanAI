@@ -451,6 +451,81 @@ export class ApiGateway extends Construct {
     });
     // Note: OPTIONS method is automatically created by defaultCorsPreflightOptions
 
+    // POST /api/v1/demo-request - Demo request form submission (public endpoint)
+    const demoRequestResource = api.addResource('demo-request');
+    const demoRequestModel = this.restApi.addModel('DemoRequestModel', {
+      contentType: 'application/json',
+      modelName: 'DemoRequest',
+      schema: {
+        type: apigateway.JsonSchemaType.OBJECT,
+        required: ['firstName', 'lastName', 'company', 'email'],
+        properties: {
+          firstName: {
+            type: apigateway.JsonSchemaType.STRING,
+            description: 'First name',
+          },
+          lastName: {
+            type: apigateway.JsonSchemaType.STRING,
+            description: 'Last name',
+          },
+          company: {
+            type: apigateway.JsonSchemaType.STRING,
+            description: 'Company name',
+          },
+          email: {
+            type: apigateway.JsonSchemaType.STRING,
+            description: 'Email address',
+          },
+          phone: {
+            type: apigateway.JsonSchemaType.STRING,
+            description: 'Phone number (optional)',
+          },
+        },
+      },
+    });
+
+    const demoRequestResponseModel = this.restApi.addModel('DemoRequestResponseModel', {
+      contentType: 'application/json',
+      modelName: 'DemoRequestResponse',
+      schema: {
+        type: apigateway.JsonSchemaType.OBJECT,
+        properties: {
+          message: { type: apigateway.JsonSchemaType.STRING },
+          success: { type: apigateway.JsonSchemaType.BOOLEAN },
+        },
+      },
+    });
+
+    demoRequestResource.addMethod('POST', new apigateway.LambdaIntegration(props.lambdaFunctions.demoRequestHandler), {
+      apiKeyRequired: false, // Public endpoint for website form
+      requestModels: {
+        'application/json': demoRequestModel,
+      },
+      methodResponses: [
+        {
+          statusCode: '200',
+          responseModels: {
+            'application/json': demoRequestResponseModel,
+          },
+          responseParameters: {
+            'method.response.header.Access-Control-Allow-Origin': true,
+          },
+        },
+        {
+          statusCode: '400',
+          responseParameters: {
+            'method.response.header.Access-Control-Allow-Origin': true,
+          },
+        },
+        {
+          statusCode: '500',
+          responseParameters: {
+            'method.response.header.Access-Control-Allow-Origin': true,
+          },
+        },
+      ],
+    });
+
     // POST /api/v1/webhooks - Register webhook
     const webhooksResource = api.addResource('webhooks');
     webhooksResource.addMethod('POST', new apigateway.LambdaIntegration(props.lambdaFunctions.webhookRegistrationHandler), {
