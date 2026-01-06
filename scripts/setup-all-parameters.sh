@@ -31,7 +31,7 @@ echo "✅ Captis access key configured"
 if [ -n "$TWILIO_ACCOUNT_SID" ]; then
   echo "📝 Setting Twilio account SID..."
   aws ssm put-parameter \
-    --name "/spartan-ai/twilio/account-sid" \
+    --name "/spartan-ai/twilio/sid" \
     --value "$TWILIO_ACCOUNT_SID" \
     --type "SecureString" \
     --overwrite \

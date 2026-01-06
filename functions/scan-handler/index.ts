@@ -420,6 +420,14 @@ export const handler = async (
 
       // Store scan record in DynamoDB
       const createdAt = new Date().toISOString();
+      
+      // Store image URL if provided as URL (not base64, for privacy compliance)
+      // Base64 images are not stored - only URLs for display on alert page
+      const imageUrl = typeof request.image === 'string' && 
+                       (request.image.startsWith('http://') || request.image.startsWith('https://'))
+                       ? request.image 
+                       : null;
+      
       await docClient.send(
         new PutCommand({
           TableName: process.env.SCANS_TABLE_NAME!,
@@ -432,6 +440,7 @@ export const handler = async (
               cameraID,
               location,
               timestamp: timestamp || createdAt,
+              ...(imageUrl && { imageUrl }), // Only store if it's a URL
             },
             createdAt,
             updatedAt: createdAt,

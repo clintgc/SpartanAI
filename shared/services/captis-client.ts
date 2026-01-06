@@ -219,12 +219,45 @@ export class CaptisClient {
         },
       })) || [];
 
+      // Extract crimes from scan data if available
+      // Crimes might be in scanData.crimes or scanData.recordList[].crimes
+      let crimes: Array<{ description: string; type: string; date: string; status: string }> | undefined;
+      if (scanData.recordList && scanData.recordList.length > 0) {
+        // Try to get crimes from the top match's record
+        const topRecord = scanData.recordList[0];
+        if (topRecord.crimes && Array.isArray(topRecord.crimes)) {
+          crimes = topRecord.crimes.map((crime: any) => ({
+            description: crime.description || '',
+            type: crime.type || '',
+            date: crime.date || '',
+            status: crime.status || '',
+          }));
+        }
+      }
+      // Also check if crimes are at the scan level
+      if (!crimes && scanData.crimes) {
+        crimes = Array.isArray(scanData.crimes) 
+          ? scanData.crimes.map((crime: any) => ({
+              description: crime.description || '',
+              type: crime.type || '',
+              date: crime.date || '',
+              status: crime.status || '',
+            }))
+          : [{
+              description: scanData.crimes.description || '',
+              type: scanData.crimes.type || '',
+              date: scanData.crimes.date || '',
+              status: scanData.crimes.status || '',
+            }];
+      }
+      
       // Return in CaptisResolveResponse format
       return {
         id: scanData.id,
         status: scanData.status || 'COMPLETED',
         matches: matches.length > 0 ? matches : undefined,
         biometrics: scanData.biometrics ? (Array.isArray(scanData.biometrics) ? scanData.biometrics : [scanData.biometrics]) : undefined,
+        crimes: crimes && crimes.length > 0 ? crimes : undefined,
         viewMatchesUrl: scanData.viewMatchesUrl,
         timedOutFlag: false,
       } as CaptisResolveResponse;

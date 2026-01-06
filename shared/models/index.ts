@@ -63,6 +63,15 @@ export interface AlertPayload {
   };
   viewMatchesUrl: string;
   accountID: string;
+  mugShotUrl?: string; // Photo URL of the top match subject
+  subjectName?: string; // Full name of the matched subject
+  subjectType?: string; // Type of subject (e.g., "WANTED", "MISSING")
+  crimes?: Array<{
+    description: string;
+    type: string;
+    date: string;
+    status: string;
+  }>; // Criminal record information
 }
 
 export interface QuotaRecord {

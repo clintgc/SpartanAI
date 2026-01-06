@@ -63,9 +63,9 @@ The Lambda function checks for the Captis access key in this order:
 ### Twilio Credentials
 
 ```bash
-aws ssm put-parameter --name "/spartan-ai/twilio/account-sid" --value "YOUR_SID" --type "SecureString"
+aws ssm put-parameter --name "/spartan-ai/twilio/sid" --value "YOUR_SID" --type "SecureString"
 aws ssm put-parameter --name "/spartan-ai/twilio/auth-token" --value "YOUR_TOKEN" --type "SecureString"
-aws ssm put-parameter --name "/spartan-ai/twilio/phone-number" --value "+1234567890" --type "String"
+aws ssm put-parameter --name "/spartan-ai/twilio/phone-number" --value "+1234567890" --type "SecureString"
 ```
 
 ### SendGrid API Key

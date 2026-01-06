@@ -10,6 +10,7 @@ export interface TwilioConfig {
 export interface SendSmsOptions {
   to: string; // E.164 format phone number
   body: string;
+  mediaUrl?: string; // Optional media URL for WhatsApp images
 }
 
 export interface SendSmsResult {
@@ -28,21 +29,51 @@ export class TwilioClient {
   }
 
   /**
-   * Send SMS message
+   * Send SMS or WhatsApp message
    * Phone number must be in E.164 format (e.g., +1234567890)
+   * Supports WhatsApp if phone number is prefixed with "whatsapp:"
    */
   async sendSms(options: SendSmsOptions): Promise<SendSmsResult> {
     try {
-      // Validate E.164 format
-      if (!this.isE164Format(options.to)) {
-        throw new Error(`Invalid phone number format. Expected E.164 format, got: ${options.to}`);
+      // Check if using WhatsApp format
+      const useWhatsApp = this.phoneNumber.startsWith('whatsapp:') || options.to.startsWith('whatsapp:');
+      
+      // Normalize phone numbers
+      let fromNumber = this.phoneNumber;
+      let toNumber = options.to;
+      
+      if (useWhatsApp) {
+        // Ensure WhatsApp prefix
+        if (!fromNumber.startsWith('whatsapp:')) {
+          fromNumber = `whatsapp:${fromNumber}`;
+        }
+        if (!toNumber.startsWith('whatsapp:')) {
+          // Validate E.164 format before adding WhatsApp prefix
+          const cleanNumber = toNumber.replace(/^whatsapp:/, '');
+          if (!this.isE164Format(cleanNumber)) {
+            throw new Error(`Invalid phone number format. Expected E.164 format, got: ${cleanNumber}`);
+          }
+          toNumber = `whatsapp:${cleanNumber}`;
+        }
+      } else {
+        // Validate E.164 format for SMS
+        if (!this.isE164Format(options.to)) {
+          throw new Error(`Invalid phone number format. Expected E.164 format, got: ${options.to}`);
+        }
       }
 
-      const message = await this.client.messages.create({
+      const messageOptions: any = {
         body: options.body,
-        to: options.to,
-        from: this.phoneNumber,
-      });
+        to: toNumber,
+        from: fromNumber,
+      };
+
+      // Add media URL for WhatsApp if provided
+      if (useWhatsApp && options.mediaUrl) {
+        messageOptions.mediaUrl = [options.mediaUrl];
+      }
+
+      const message = await this.client.messages.create(messageOptions);
 
       return {
         messageSid: message.sid,

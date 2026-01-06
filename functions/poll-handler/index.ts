@@ -78,9 +78,36 @@ export const handler = async (event: EventBridgeEvent<'PollScan', PollEvent>): P
       expressionAttributeValues[':level'] = null;
     }
 
+    // Store matches array for alert page display
+    if (result.matches && result.matches.length > 0) {
+      updateItems.push('matches = :matches');
+      expressionAttributeValues[':matches'] = result.matches;
+    } else {
+      updateItems.push('matches = :matches');
+      expressionAttributeValues[':matches'] = null;
+    }
+
+    // Store crimes array for alert page display
+    if (result.crimes && result.crimes.length > 0) {
+      updateItems.push('crimes = :crimes');
+      expressionAttributeValues[':crimes'] = result.crimes;
+    } else {
+      updateItems.push('crimes = :crimes');
+      expressionAttributeValues[':crimes'] = null;
+    }
+
+    // Store image URL if available
+    if (result.image) {
+      updateItems.push('#image = :image');
+      expressionAttributeValues[':image'] = result.image;
+    }
+
     const expressionAttributeNames: Record<string, string> = {};
     if (result.status) {
       expressionAttributeNames['#status'] = 'status';
+    }
+    if (result.image) {
+      expressionAttributeNames['#image'] = 'image';
     }
 
     await docClient.send(
@@ -95,6 +122,19 @@ export const handler = async (event: EventBridgeEvent<'PollScan', PollEvent>): P
 
     // Determine alert tier and publish to SNS
     if (matchLevel) {
+      // Get subject information from top match
+      const topMatch = result.matches?.[0];
+      const mugShotUrl = topMatch?.subject?.photo;
+      const subjectName = topMatch?.subject?.name;
+      const subjectType = topMatch?.subject?.type;
+      
+      // Generate alert landing page URL
+      // Format: https://alerts.spartan.tech/scan/{scanId}
+      // For now, using a placeholder that will work with the alert.html page
+      // When CloudFront is set up, this should be the actual domain
+      const alertBaseUrl = process.env.ALERT_LANDING_PAGE_URL || 'https://alerts.spartan.tech/scan';
+      const viewMatchesUrl = result.viewMatchesUrl || `${alertBaseUrl}/${scanId}`;
+      
       const alertPayload = {
         scanId,
         topScore,
@@ -103,8 +143,12 @@ export const handler = async (event: EventBridgeEvent<'PollScan', PollEvent>): P
           lat: 0, // Will be populated from scan metadata
           lon: 0,
         },
-        viewMatchesUrl: result.viewMatchesUrl || '',
+        viewMatchesUrl,
         accountID,
+        ...(mugShotUrl && { mugShotUrl }),
+        ...(subjectName && { subjectName }),
+        ...(subjectType && { subjectType }),
+        ...(result.crimes && result.crimes.length > 0 && { crimes: result.crimes }),
       };
 
       if (topScore > thresholds.highThreshold) {

@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Threat Alert - Spartan AI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --navy: #1a2332;
+            --dark-bg: #0f1419;
+            --text-primary: #ffffff;
+            --text-secondary: #b8c5d1;
+            --green: #28a745;
+            --orange: #fd7e14;
+            --red: #dc3545;
+            --gray: #6c757d;
+            --light-gray: #495057;
+            --border: #2a3441;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--dark-bg);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        /* Header */
+        header {
+            background: var(--navy);
+            padding: 1rem;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        header img {
+            height: 32px;
+            width: auto;
+        }
+
+        .logo-text {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        /* Loading Spinner */
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 60vh;
+            gap: 1rem;
+        }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid var(--border);
+            border-top-color: var(--green);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Error State */
+        .error {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--text-secondary);
+        }
+
+        .error h2 {
+            color: var(--red);
+            margin-bottom: 0.5rem;
+        }
+
+        /* Main Content */
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: var(--dark-bg);
+        }
+
+        /* Original Image */
+        .original-image {
+            width: 100%;
+            display: block;
+            object-fit: cover;
+            max-height: 400px;
+        }
+
+        /* Content Section */
+        .content {
+            padding: 1.5rem;
+        }
+
+        /* Mugshot */
+        .mugshot-container {
+            text-align: center;
+            margin: 1.5rem 0;
+        }
+
+        .mugshot {
+            width: 200px;
+            height: 200px;
+            border-radius: 8px;
+            object-fit: cover;
+            border: 3px solid var(--border);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Name */
+        .subject-name {
+            font-size: 2rem;
+            font-weight: 700;
+            text-align: center;
+            margin: 1rem 0;
+            color: var(--text-primary);
+        }
+
+        /* Progress Bar */
+        .progress-container {
+            margin: 1.5rem 0;
+        }
+
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        .progress-bar-wrapper {
+            width: 100%;
+            height: 32px;
+            background: var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-bar {
+            height: 100%;
+            border-radius: 16px;
+            transition: width 0.5s ease, background-color 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 0.9rem;
+            padding: 0 1rem;
+        }
+
+        .progress-bar.high {
+            background: var(--green);
+        }
+
+        .progress-bar.medium {
+            background: var(--orange);
+        }
+
+        .progress-bar.low {
+            background: var(--gray);
+        }
+
+        /* Metadata */
+        .metadata {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            margin: 1.5rem 0;
+            padding: 1rem;
+            background: var(--navy);
+            border-radius: 8px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .metadata-item {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .metadata-label {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        /* Accordion */
+        .accordion {
+            margin: 1.5rem 0;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .accordion-header {
+            background: var(--navy);
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+            user-select: none;
+            transition: background 0.2s;
+        }
+
+        .accordion-header:hover {
+            background: #222d3d;
+        }
+
+        .accordion-header::after {
+            content: '▼';
+            font-size: 0.8rem;
+            transition: transform 0.3s;
+        }
+
+        .accordion-header.active::after {
+            transform: rotate(180deg);
+        }
+
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            background: var(--dark-bg);
+        }
+
+        .accordion-content.active {
+            max-height: 1000px;
+        }
+
+        .accordion-body {
+            padding: 1.5rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .detail-section {
+            margin-bottom: 1.5rem;
+        }
+
+        .detail-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+
+        .detail-value {
+            color: var(--text-secondary);
+        }
+
+        .list-item {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .list-item:last-child {
+            border-bottom: none;
+        }
+
+        /* No Match State */
+        .no-match {
+            text-align: center;
+            padding: 3rem 1.5rem;
+            color: var(--text-secondary);
+        }
+
+        .no-match-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+
+        /* Disclaimer */
+        .disclaimer {
+            margin: 2rem 0;
+            padding: 1rem;
+            background: var(--navy);
+            border-left: 4px solid var(--orange);
+            border-radius: 4px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        /* CTA Button */
+        .cta-button {
+            display: block;
+            width: 100%;
+            padding: 1.25rem;
+            background: var(--red);
+            color: white;
+            text-align: center;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 1.1rem;
+            border-radius: 8px;
+            margin: 2rem 0;
+            transition: background 0.2s, transform 0.1s;
+            box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+        }
+
+        .cta-button:active {
+            transform: scale(0.98);
+        }
+
+        .cta-button:hover {
+            background: #c82333;
+        }
+
+        /* Footer */
+        footer {
+            background: var(--navy);
+            padding: 2rem 1.5rem;
+            text-align: center;
+            margin-top: 3rem;
+            border-top: 1px solid var(--border);
+        }
+
+        footer p {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            margin-bottom: 0.5rem;
+        }
+
+        footer img {
+            height: 24px;
+            width: auto;
+            opacity: 0.7;
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            .subject-name {
+                font-size: 1.5rem;
+            }
+
+            .mugshot {
+                width: 150px;
+                height: 150px;
+            }
+
+            .content {
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <img src="https://www.spartan.tech/logo.png" alt="Spartan AI Logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+        <span class="logo-text" style="display: none;">Threat Detection Alert</span>
+    </header>
+
+    <div class="container">
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Loading threat alert...</p>
+        </div>
+
+        <div id="error" class="error" style="display: none;">
+            <h2>Error</h2>
+            <p id="error-message"></p>
+        </div>
+
+        <div id="content" style="display: none;">
+            <!-- Original Camera Image -->
+            <img id="original-image" class="original-image" alt="Camera image" style="display: none;">
+
+            <div class="content">
+                <!-- No Match State -->
+                <div id="no-match" class="no-match" style="display: none;">
+                    <div class="no-match-icon">✓</div>
+                    <h2>No threat detected</h2>
+                    <p style="margin-top: 0.5rem;">This scan did not match any known threats.</p>
+                </div>
+
+                <!-- Match State -->
+                <div id="match-content" style="display: none;">
+                    <!-- Mugshot -->
+                    <div class="mugshot-container">
+                        <img id="mugshot" class="mugshot" alt="Subject mugshot" style="display: none;">
+                    </div>
+
+                    <!-- Subject Name -->
+                    <h1 id="subject-name" class="subject-name"></h1>
+
+                    <!-- Progress Bar -->
+                    <div class="progress-container">
+                        <div class="progress-label">
+                            <span>Match Confidence</span>
+                            <span id="match-level-text"></span>
+                        </div>
+                        <div class="progress-bar-wrapper">
+                            <div id="progress-bar" class="progress-bar"></div>
+                        </div>
+                    </div>
+
+                    <!-- Metadata -->
+                    <div class="metadata">
+                        <div class="metadata-item">
+                            <span class="metadata-label">Camera ID:</span>
+                            <span id="camera-id"></span>
+                        </div>
+                        <div class="metadata-item">
+                            <span class="metadata-label">Timestamp:</span>
+                            <span id="timestamp"></span>
+                        </div>
+                    </div>
+
+                    <!-- Expandable Details -->
+                    <div class="accordion">
+                        <div class="accordion-header" onclick="toggleAccordion(this)">
+                            More Details
+                        </div>
+                        <div class="accordion-content">
+                            <div class="accordion-body">
+                                <div id="dob-section" class="detail-section" style="display: none;">
+                                    <span class="detail-label">Date of Birth:</span>
+                                    <span id="dob" class="detail-value"></span>
+                                </div>
+                                <div id="aliases-section" class="detail-section" style="display: none;">
+                                    <span class="detail-label">Aliases:</span>
+                                    <div id="aliases" class="detail-value"></div>
+                                </div>
+                                <div id="offenses-section" class="detail-section" style="display: none;">
+                                    <span class="detail-label">Offenses:</span>
+                                    <div id="offenses" class="detail-value"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Disclaimer -->
+                    <div class="disclaimer">
+                        This is a confidence score based on facial recognition and public criminal records. It is not 100% identification. Please verify with authorities.
+                    </div>
+
+                    <!-- CTA Button -->
+                    <a href="#" id="cta-button" class="cta-button" onclick="handleCTAClick(event)">
+                        Open Security Camera App
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>Powered by advanced AI threat detection</p>
+        <img src="https://www.spartan.tech/logo.png" alt="Spartan AI" onerror="this.style.display='none';">
+    </footer>
+
+    <script>
+        // Extract scanId from URL pathname
+        // Handles formats like: /scan/scan-12345, /scan/{uuid}, etc.
+        function getScanIdFromUrl() {
+            const path = window.location.pathname;
+            // Match /scan/{scanId} pattern, capturing the scanId (handles query strings and fragments)
+            const match = path.match(/\/scan\/([^\/?#]+)/);
+            return match ? match[1] : null;
+        }
+
+        // Format date
+        function formatDate(dateString) {
+            if (!dateString) return 'N/A';
+            try {
+                const date = new Date(dateString);
+                return date.toLocaleString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true
+                });
+            } catch {
+                return dateString;
+            }
+        }
+
+        // Determine match level color
+        function getMatchLevelClass(score, matchLevel) {
+            if (matchLevel === 'HIGH' || (score && score > 89)) {
+                return 'high';
+            } else if (matchLevel === 'MEDIUM' || (score && score > 75)) {
+                return 'medium';
+            }
+            return 'low';
+        }
+
+        // Get match level text
+        function getMatchLevelText(matchLevel, score) {
+            if (matchLevel === 'HIGH' || (score && score > 89)) {
+                return 'HIGH';
+            } else if (matchLevel === 'MEDIUM' || (score && score > 75)) {
+                return 'MEDIUM';
+            } else if (matchLevel === 'LOW' || (score && score > 50)) {
+                return 'LOW';
+            }
+            return 'NO MATCH';
+        }
+
+        // Toggle accordion
+        function toggleAccordion(header) {
+            const content = header.nextElementSibling;
+            const isActive = header.classList.contains('active');
+            
+            if (isActive) {
+                header.classList.remove('active');
+                content.classList.remove('active');
+            } else {
+                header.classList.add('active');
+                content.classList.add('active');
+            }
+        }
+
+        // Handle CTA button click
+        function handleCTAClick(event) {
+            event.preventDefault();
+            // Try deeplink first, fallback to placeholder
+            const deeplink = 'spartanai://alert';
+            const fallback = '#';
+            
+            // Try to open app
+            window.location.href = deeplink;
+            
+            // Fallback after timeout
+            setTimeout(() => {
+                if (document.hidden) {
+                    // App opened, do nothing
+                } else {
+                    window.location.href = fallback;
+                }
+            }, 500);
+        }
+
+        // Fetch scan data
+        async function loadScanData() {
+            const scanId = getScanIdFromUrl();
+            
+            if (!scanId) {
+                showError('Invalid scan ID');
+                return;
+            }
+
+            try {
+                const apiUrl = `https://yedpdu8io5.execute-api.us-east-1.amazonaws.com/v1/public/scan/${scanId}`;
+                const response = await fetch(apiUrl);
+
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        showError('Scan not found');
+                    } else if (response.status === 401 || response.status === 403) {
+                        showError('Unauthorized access');
+                    } else {
+                        showError(`Error: ${response.status} ${response.statusText}`);
+                    }
+                    return;
+                }
+
+                const data = await response.json();
+                displayScanData(data);
+            } catch (error) {
+                console.error('Error fetching scan data:', error);
+                showError('Failed to load scan data. Please try again later.');
+            }
+        }
+
+        // Display scan data
+        function displayScanData(data) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('content').style.display = 'block';
+
+            // Defensive coding: Check for matches array and top match
+            const hasMatch = data.topScore && data.topScore > 0 && data.matchLevel;
+            const topMatch = data.matches && Array.isArray(data.matches) && data.matches.length > 0 ? data.matches[0] : null;
+
+            if (!hasMatch || !topMatch) {
+                // No threat detected state
+                document.getElementById('no-match').style.display = 'block';
+                return;
+            }
+
+            // Show match content
+            document.getElementById('match-content').style.display = 'block';
+
+            // Original image (if available in metadata or separate field)
+            // Handle both HTTP URLs and base64 data URLs
+            const originalImage = data.metadata?.imageUrl || data.image || null;
+            if (originalImage) {
+                const img = document.getElementById('original-image');
+                // Check if it's a base64 string or HTTP URL
+                if (originalImage.startsWith('data:image/') || originalImage.startsWith('data:image%2F')) {
+                    // Already a data URL
+                    img.src = originalImage;
+                    img.style.display = 'block';
+                    img.onerror = () => { img.style.display = 'none'; };
+                } else if (originalImage.startsWith('http://') || originalImage.startsWith('https://')) {
+                    // HTTP/HTTPS URL
+                    img.src = originalImage;
+                    img.style.display = 'block';
+                    img.onerror = () => { img.style.display = 'none'; };
+                } else if (originalImage.length > 100 && /^[A-Za-z0-9+/=]+$/.test(originalImage)) {
+                    // Base64 string without data: prefix - convert to data URL
+                    let mimeType = 'image/jpeg'; // default
+                    if (originalImage.startsWith('UklGR')) {
+                        mimeType = 'image/webp';
+                    } else if (originalImage.startsWith('iVBOR')) {
+                        mimeType = 'image/png';
+                    } else if (originalImage.startsWith('/9j/')) {
+                        mimeType = 'image/jpeg';
+                    }
+                    img.src = `data:${mimeType};base64,${originalImage}`;
+                    img.style.display = 'block';
+                    img.onerror = () => { img.style.display = 'none'; };
+                }
+            }
+
+            // Mugshot - handle both HTTP URLs and base64 data URLs
+            const mugshotUrl = topMatch.subject?.photo || topMatch.mugshotUrl || null;
+            if (mugshotUrl) {
+                const mugshot = document.getElementById('mugshot');
+                // Check if it's a base64 string (starts with data: or is a long base64 string)
+                if (mugshotUrl.startsWith('data:image/') || mugshotUrl.startsWith('data:image%2F')) {
+                    // Already a data URL
+                    mugshot.src = mugshotUrl;
+                    mugshot.style.display = 'block';
+                    mugshot.onerror = () => { mugshot.style.display = 'none'; };
+                } else if (mugshotUrl.startsWith('http://') || mugshotUrl.startsWith('https://')) {
+                    // HTTP/HTTPS URL
+                    mugshot.src = mugshotUrl;
+                    mugshot.style.display = 'block';
+                    mugshot.onerror = () => { mugshot.style.display = 'none'; };
+                } else if (mugshotUrl.length > 100 && /^[A-Za-z0-9+/=]+$/.test(mugshotUrl)) {
+                    // Base64 string without data: prefix - convert to data URL
+                    // Try to detect image type from the base64 content
+                    // WebP starts with UklGR, JPEG with /9j/, PNG with iVBOR
+                    let mimeType = 'image/jpeg'; // default
+                    if (mugshotUrl.startsWith('UklGR')) {
+                        mimeType = 'image/webp';
+                    } else if (mugshotUrl.startsWith('iVBOR')) {
+                        mimeType = 'image/png';
+                    } else if (mugshotUrl.startsWith('/9j/') || mugshotUrl.startsWith('iVBOR')) {
+                        mimeType = 'image/jpeg';
+                    }
+                    mugshot.src = `data:${mimeType};base64,${mugshotUrl}`;
+                    mugshot.style.display = 'block';
+                    mugshot.onerror = () => { mugshot.style.display = 'none'; };
+                }
+            }
+
+            // Subject name
+            const subjectName = topMatch.subject?.name || topMatch.name || 'Unknown Subject';
+            document.getElementById('subject-name').textContent = subjectName;
+
+            // Progress bar
+            const score = data.topScore || topMatch.score || 0;
+            const matchLevel = data.matchLevel || topMatch.scoreLevel || 'LOW';
+            const levelClass = getMatchLevelClass(score, matchLevel);
+            const levelText = getMatchLevelText(matchLevel, score);
+
+            const progressBar = document.getElementById('progress-bar');
+            progressBar.className = `progress-bar ${levelClass}`;
+            progressBar.style.width = `${Math.min(score, 100)}%`;
+            progressBar.textContent = `${score.toFixed(2)}% - ${levelText}`;
+
+            document.getElementById('match-level-text').textContent = levelText;
+
+            // Metadata
+            document.getElementById('camera-id').textContent = data.metadata?.cameraID || 'N/A';
+            document.getElementById('timestamp').textContent = formatDate(data.metadata?.timestamp || data.createdAt);
+
+            // Expandable details
+            // DOB
+            const dob = topMatch.subject?.dob || topMatch.dob || data.dob;
+            if (dob) {
+                document.getElementById('dob-section').style.display = 'block';
+                document.getElementById('dob').textContent = dob;
+            }
+
+            // Aliases
+            const aliases = topMatch.subject?.aliases || topMatch.aliases || data.aliases;
+            if (aliases && Array.isArray(aliases) && aliases.length > 0) {
+                document.getElementById('aliases-section').style.display = 'block';
+                const aliasesContainer = document.getElementById('aliases');
+                aliasesContainer.innerHTML = aliases.map(alias => 
+                    `<div class="list-item">${alias}</div>`
+                ).join('');
+            } else if (typeof aliases === 'string') {
+                document.getElementById('aliases-section').style.display = 'block';
+                document.getElementById('aliases').textContent = aliases;
+            }
+
+            // Offenses/Crimes
+            const crimes = data.crimes || topMatch.crimes || topMatch.offenses;
+            if (crimes && Array.isArray(crimes) && crimes.length > 0) {
+                document.getElementById('offenses-section').style.display = 'block';
+                const offensesContainer = document.getElementById('offenses');
+                offensesContainer.innerHTML = crimes.map(crime => {
+                    const type = crime.type || 'Unknown';
+                    const desc = crime.description || '';
+                    const date = crime.date ? ` (${crime.date})` : '';
+                    const status = crime.status ? ` [${crime.status}]` : '';
+                    return `<div class="list-item">${type}${desc ? ': ' + desc : ''}${date}${status}</div>`;
+                }).join('');
+            }
+        }
+
+        // Show error
+        function showError(message) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('error-message').textContent = message;
+        }
+
+        // Initialize on page load
+        window.addEventListener('DOMContentLoaded', loadScanData);
+    </script>
+</body>
+</html>
+

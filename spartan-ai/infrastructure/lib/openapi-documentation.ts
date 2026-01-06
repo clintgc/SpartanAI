@@ -37,7 +37,7 @@ export class OpenApiDocumentation extends Construct {
     // Create Lambda function to export OpenAPI spec from API Gateway
     // This automatically exports the OpenAPI 3.0 spec from the deployed API Gateway
     const exportOpenApiLambda = new lambdaNodejs.NodejsFunction(this, 'ExportOpenApiLambda', {
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       functionName: 'spartan-ai-export-openapi',
       entry: path.join(__dirname, '../../functions/export-openapi-handler/index.ts'),
       handler: 'handler',

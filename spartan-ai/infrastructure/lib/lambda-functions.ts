@@ -23,6 +23,7 @@ export class LambdaFunctions extends Construct {
   public readonly emailAggregator: lambda.Function;
   public readonly webhookDispatcher: lambda.Function;
   public readonly scanDetailHandler: lambda.Function;
+  public readonly publicScanDetailHandler: lambda.Function;
   public readonly scanListHandler: lambda.Function;
   public readonly consentHandler: lambda.Function;
   public readonly webhookRegistrationHandler: lambda.Function;
@@ -35,7 +36,7 @@ export class LambdaFunctions extends Construct {
 
     // Shared Lambda configuration
     const defaultLambdaProps: Partial<lambdaNodejs.NodejsFunctionProps> = {
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       memorySize: 512,
       timeout: cdk.Duration.seconds(30),
       bundling: {
@@ -93,6 +94,8 @@ export class LambdaFunctions extends Construct {
       environment: {
         ...defaultLambdaProps.environment,
         CAPTIS_BASE_URL: 'https://asi-api.solveacrime.com',
+        // Alert landing page URL - will be set after API Gateway is created
+        ALERT_LANDING_PAGE_URL: 'https://alerts.spartan.tech/scan', // Default, can be overridden
       },
     });
 
@@ -108,10 +111,14 @@ export class LambdaFunctions extends Construct {
       environment: {
         ...defaultLambdaProps.environment,
         // Store SSM parameter paths - Lambda will read values at runtime
-        TWILIO_ACCOUNT_SID_PARAM: '/spartan-ai/twilio/account-sid',
+        TWILIO_ACCOUNT_SID_PARAM: '/spartan-ai/twilio/sid',
         TWILIO_AUTH_TOKEN_PARAM: '/spartan-ai/twilio/auth-token',
         TWILIO_PHONE_NUMBER_PARAM: '/spartan-ai/twilio/phone-number',
         FCM_SERVER_KEY_PARAM: '/spartan-ai/fcm/server-key',
+        // Verified Twilio sandbox phone number (WhatsApp format for testing)
+        USER_PHONE_NUMBER: 'whatsapp:+18017358534',
+        // Alert landing page URL - configurable via environment variable
+        ALERT_LANDING_PAGE_URL: 'https://alerts.spartan.tech/scan',
       },
     });
 
@@ -156,6 +163,16 @@ export class LambdaFunctions extends Construct {
       entry: path.join(rootFunctionsPath, 'scan-detail-handler/index.ts'),
       handler: 'handler',
       timeout: cdk.Duration.seconds(5),
+    });
+
+    // Public Scan Detail Handler Lambda (no authentication required)
+    this.publicScanDetailHandler = new lambdaNodejs.NodejsFunction(this, 'PublicScanDetailHandler', {
+      ...defaultLambdaProps,
+      functionName: 'spartan-ai-public-scan-detail-handler',
+      entry: path.join(rootFunctionsPath, 'public-scan-detail-handler/index.ts'),
+      handler: 'handler',
+      timeout: cdk.Duration.seconds(10),
+      memorySize: 256,
     });
 
     // Scan List Handler Lambda
@@ -214,6 +231,15 @@ export class LambdaFunctions extends Construct {
       entry: path.join(rootFunctionsPath, 'demo-request-handler/index.ts'),
       handler: 'handler',
       timeout: cdk.Duration.seconds(10),
+      bundling: {
+        ...defaultLambdaProps.bundling,
+        externalModules: ['aws-sdk', '@aws-sdk', '@smithy'],
+        commandHooks: {
+          beforeBundling: () => [],
+          beforeInstall: () => [],
+          afterBundling: () => [],
+        },
+      },
       environment: {
         SENDER_EMAIL: 'noreply@spartan.tech',
       },
@@ -232,7 +258,9 @@ export class LambdaFunctions extends Construct {
     props.tables.scansTable.grantReadWriteData(this.scanHandler);
     props.tables.scansTable.grantReadWriteData(this.pollHandler);
     props.tables.scansTable.grantReadData(this.scanDetailHandler);
+    props.tables.scansTable.grantReadData(this.publicScanDetailHandler);
     props.tables.scansTable.grantReadData(this.scanListHandler);
+    props.tables.scansTable.grantReadData(this.alertHandler);
 
     props.tables.quotasTable.grantReadWriteData(this.scanHandler);
 
@@ -241,6 +269,7 @@ export class LambdaFunctions extends Construct {
 
     props.tables.consentTable.grantReadWriteData(this.scanHandler);
     props.tables.consentTable.grantReadWriteData(this.consentHandler);
+    props.tables.consentTable.grantReadData(this.alertHandler);
 
     props.tables.webhookSubscriptionsTable.grantReadData(this.webhookDispatcher);
     props.tables.webhookSubscriptionsTable.grantReadWriteData(this.webhookRegistrationHandler);
@@ -249,6 +278,7 @@ export class LambdaFunctions extends Construct {
 
     props.tables.accountProfilesTable.grantReadData(this.emailAggregator);
     props.tables.accountProfilesTable.grantReadWriteData(this.thresholdHandler);
+    props.tables.accountProfilesTable.grantReadData(this.alertHandler);
 
     // Grant poll handler permissions for thresholds
     props.tables.accountProfilesTable.grantReadData(this.pollHandler);

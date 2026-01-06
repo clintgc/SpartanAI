@@ -19,6 +19,26 @@ let fcmClient: FcmClient | null = null;
 let fcmInitializationPromise: Promise<void> | null = null;
 
 /**
+ * Construct public alert URL with fallback
+ * @param scanId - Scan ID from alert payload
+ * @param viewMatchesUrl - Optional URL from alert payload
+ * @returns Public alert URL or null if scanId is missing
+ */
+function getAlertUrl(scanId: string, viewMatchesUrl?: string): string | null {
+  if (viewMatchesUrl) {
+    return viewMatchesUrl;
+  }
+  
+  if (!scanId) {
+    return null;
+  }
+  
+  // Fallback: construct URL from environment variable or default
+  const alertBaseUrl = process.env.ALERT_LANDING_PAGE_URL || 'https://alerts.spartan.tech/scan';
+  return `${alertBaseUrl}/${scanId}`;
+}
+
+/**
  * Initialize FCM client from FCM_SERVER_KEY environment variable
  * Supports both direct JSON string or SSM parameter path
  * Uses lazy initialization with promise caching to avoid multiple SSM calls
@@ -111,79 +131,148 @@ export const handler = async (event: SNSEvent): Promise<void> => {
       // Get configurable thresholds for this account
       const thresholds = await thresholdService.getThresholds(accountID, 'captis');
 
+      // Check consent status before sending SMS
+      const consent = await dbService.getConsent(accountID);
+      const hasConsent = consent?.consentStatus === true;
+
       // High threat - Send SMS + FCM + webhook + log location
       if (topScore > thresholds.highThreshold) {
-        // Send SMS via Twilio
-        // Read Twilio credentials from SSM if parameter paths are provided, otherwise use env vars
-        let twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
-        let twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
-        let twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+        // Send SMS via Twilio (only if user has consented)
+        if (hasConsent) {
+          // Read Twilio credentials from SSM if parameter paths are provided, otherwise use env vars
+          let twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
+          let twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
+          let twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
 
-        // If parameter paths are provided, fetch from SSM
-        if (process.env.TWILIO_ACCOUNT_SID_PARAM) {
-          try {
-            const sidParam = await ssmClient.send(
-              new GetParameterCommand({
-                Name: process.env.TWILIO_ACCOUNT_SID_PARAM,
-                WithDecryption: true,
-              })
-            );
-            twilioAccountSid = sidParam.Parameter?.Value;
-          } catch (error) {
-            console.error('Failed to get Twilio Account SID from SSM:', error);
-          }
-        }
-        if (process.env.TWILIO_AUTH_TOKEN_PARAM) {
-          try {
-            const tokenParam = await ssmClient.send(
-              new GetParameterCommand({
-                Name: process.env.TWILIO_AUTH_TOKEN_PARAM,
-                WithDecryption: true,
-              })
-            );
-            twilioAuthToken = tokenParam.Parameter?.Value;
-          } catch (error) {
-            console.error('Failed to get Twilio Auth Token from SSM:', error);
-          }
-        }
-        if (process.env.TWILIO_PHONE_NUMBER_PARAM) {
-          try {
-            const phoneParam = await ssmClient.send(
-              new GetParameterCommand({
-                Name: process.env.TWILIO_PHONE_NUMBER_PARAM,
-                WithDecryption: true,
-              })
-            );
-            twilioPhoneNumber = phoneParam.Parameter?.Value;
-          } catch (error) {
-            console.error('Failed to get Twilio Phone Number from SSM:', error);
-          }
-        }
-
-        if (twilioAccountSid && twilioAuthToken && twilioPhoneNumber) {
-          try {
-            const twilioClient = new TwilioClient({
-              accountSid: twilioAccountSid,
-              authToken: twilioAuthToken,
-              phoneNumber: twilioPhoneNumber,
-            });
-
-            // Get user phone from account profile (in production, fetch from account DB)
-            // For now, using placeholder - in production this should come from account profile
-            const userPhone = process.env.USER_PHONE_NUMBER || ''; // Should be fetched from account profile
-
-            if (userPhone) {
-              const smsBody = `High threat detected (${topScore}% match). View details: ${alertPayload.viewMatchesUrl}`;
-              const smsResult = await twilioClient.sendSms({
-                to: userPhone,
-                body: smsBody,
-              });
-              console.log(`SMS sent: ${smsResult.messageSid}`);
+          // If parameter paths are provided, fetch from SSM
+          if (process.env.TWILIO_ACCOUNT_SID_PARAM) {
+            try {
+              const sidParam = await ssmClient.send(
+                new GetParameterCommand({
+                  Name: process.env.TWILIO_ACCOUNT_SID_PARAM,
+                  WithDecryption: true,
+                })
+              );
+              twilioAccountSid = sidParam.Parameter?.Value;
+            } catch (error) {
+              console.error('Failed to get Twilio Account SID from SSM:', error);
             }
-          } catch (error) {
-            console.error('Twilio SMS error:', error);
-            // Continue processing even if SMS fails
           }
+          if (process.env.TWILIO_AUTH_TOKEN_PARAM) {
+            try {
+              const tokenParam = await ssmClient.send(
+                new GetParameterCommand({
+                  Name: process.env.TWILIO_AUTH_TOKEN_PARAM,
+                  WithDecryption: true,
+                })
+              );
+              twilioAuthToken = tokenParam.Parameter?.Value;
+            } catch (error) {
+              console.error('Failed to get Twilio Auth Token from SSM:', error);
+            }
+          }
+          if (process.env.TWILIO_PHONE_NUMBER_PARAM) {
+            try {
+              const phoneParam = await ssmClient.send(
+                new GetParameterCommand({
+                  Name: process.env.TWILIO_PHONE_NUMBER_PARAM,
+                  WithDecryption: true,
+                })
+              );
+              twilioPhoneNumber = phoneParam.Parameter?.Value;
+            } catch (error) {
+              console.error('Failed to get Twilio Phone Number from SSM:', error);
+            }
+          }
+
+          if (twilioAccountSid && twilioAuthToken && twilioPhoneNumber) {
+            try {
+              const twilioClient = new TwilioClient({
+                accountSid: twilioAccountSid,
+                authToken: twilioAuthToken,
+                phoneNumber: twilioPhoneNumber,
+              });
+
+              // Get user phone from account profile (in production, fetch from account DB)
+              // For now, using placeholder - in production this should come from account profile
+              const userPhone = process.env.USER_PHONE_NUMBER || ''; // Should be fetched from account profile
+
+              if (userPhone) {
+                // Build detailed message with subject information
+                let smsBody = `🚨 High Threat Alert (${topScore}% match)\n\n`;
+                
+                // Add subject name information
+                if (alertPayload.subjectName) {
+                  // Try to parse first and last name
+                  const nameParts = alertPayload.subjectName.trim().split(/\s+/);
+                  if (nameParts.length >= 2) {
+                    const firstName = nameParts[0];
+                    const lastName = nameParts[nameParts.length - 1];
+                    smsBody += `Name: ${firstName} ${lastName}\n`;
+                  } else {
+                    smsBody += `Name: ${alertPayload.subjectName}\n`;
+                  }
+                  
+                  if (alertPayload.subjectType) {
+                    smsBody += `Type: ${alertPayload.subjectType}\n`;
+                  }
+                }
+                
+                // Add criminal record information
+                if (alertPayload.crimes && alertPayload.crimes.length > 0) {
+                  smsBody += `\nCriminal Record:\n`;
+                  // Include up to 3 most recent crimes
+                  const recentCrimes = alertPayload.crimes.slice(0, 3);
+                  recentCrimes.forEach((crime, index) => {
+                    smsBody += `${index + 1}. ${crime.type || 'Unknown'}`;
+                    if (crime.description) {
+                      smsBody += `: ${crime.description}`;
+                    }
+                    if (crime.date) {
+                      smsBody += ` (${crime.date})`;
+                    }
+                    if (crime.status) {
+                      smsBody += ` [${crime.status}]`;
+                    }
+                    smsBody += `\n`;
+                  });
+                  if (alertPayload.crimes.length > 3) {
+                    smsBody += `...and ${alertPayload.crimes.length - 3} more\n`;
+                  }
+                }
+                
+                // Include alert URL in message
+                const publicUrl = getAlertUrl(scanId, alertPayload.viewMatchesUrl);
+                smsBody += `\nView details: ${publicUrl || 'N/A'}`;
+                
+                const smsOptions: any = {
+                  to: userPhone,
+                  body: smsBody,
+                };
+                
+                // Include mug shot image if available and is a valid HTTP/HTTPS URL
+                // Twilio requires publicly accessible URLs, not data URLs or base64
+                if (alertPayload.mugShotUrl) {
+                  const mugShotUrl = alertPayload.mugShotUrl.trim();
+                  // Check if it's a valid HTTP/HTTPS URL (not base64 data URL)
+                  if (mugShotUrl.startsWith('http://') || mugShotUrl.startsWith('https://')) {
+                    smsOptions.mediaUrl = mugShotUrl;
+                    console.log(`Including mug shot image: ${mugShotUrl}`);
+                  } else {
+                    console.log(`Skipping mug shot - not a valid HTTP URL (may be base64 data URL): ${mugShotUrl.substring(0, 50)}...`);
+                  }
+                }
+                
+                const smsResult = await twilioClient.sendSms(smsOptions);
+                console.log(`SMS sent: ${smsResult.messageSid}`);
+              }
+            } catch (error) {
+              console.error('Twilio SMS error:', error);
+              // Continue processing even if SMS fails
+            }
+          }
+        } else {
+          console.log(`Skipping SMS - user has not consented (accountID: ${accountID})`);
         }
 
         // Send FCM notification for high threat
@@ -249,9 +338,13 @@ async function sendFcmNotification(
       ? `🚨 High Threat Detected (${alertPayload.topScore}%)`
       : `⚠️ Medium Threat Detected (${alertPayload.topScore}%)`;
     
+    // Construct alert URL with fallback
+    const publicUrl = getAlertUrl(alertPayload.scanId, alertPayload.viewMatchesUrl);
+    
+    // Build notification body with URL
     const body = threatLevel === 'HIGH'
-      ? `Immediate action required. Match level: ${alertPayload.matchLevel}`
-      : `Threat detected. Match level: ${alertPayload.matchLevel}`;
+      ? `Person of interest detected. Confidence: ${alertPayload.topScore}%.${publicUrl ? ` View details: ${publicUrl}` : ''}`
+      : `Threat detected. Match level: ${alertPayload.matchLevel}.${publicUrl ? ` View details: ${publicUrl}` : ''}`;
 
     // Send FCM notification using FcmClient
     const response = await fcmClient.sendNotification(deviceTokens, {
@@ -262,7 +355,7 @@ async function sendFcmNotification(
         topScore: alertPayload.topScore.toString(),
         matchLevel: alertPayload.matchLevel,
         threatLevel,
-        viewMatchesUrl: alertPayload.viewMatchesUrl,
+        viewMatchesUrl: publicUrl || alertPayload.viewMatchesUrl || '',
         accountID: alertPayload.accountID,
         timestamp: new Date().toISOString(),
       },

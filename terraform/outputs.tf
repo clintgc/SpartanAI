@@ -43,3 +43,24 @@ output "root_domain_url" {
   value       = "https://${var.domain_name}"
 }
 
+# Alerts subdomain outputs
+output "alerts_s3_bucket_name" {
+  description = "Name of the alerts S3 bucket"
+  value       = module.s3_alerts.alerts_bucket_id
+}
+
+output "alerts_cloudfront_distribution_id" {
+  description = "ID of the alerts CloudFront distribution"
+  value       = module.cloudfront_alerts.alerts_distribution_id
+}
+
+output "alerts_cloudfront_url" {
+  description = "URL of the alerts CloudFront distribution"
+  value       = "https://${module.cloudfront_alerts.alerts_distribution_domain_name}"
+}
+
+output "alerts_final_url" {
+  description = "Final URL for alerts subdomain"
+  value       = "https://alerts.${var.domain_name}"
+}
+

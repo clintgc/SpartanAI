@@ -1,5 +1,6 @@
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as cdk from 'aws-cdk-lib';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import { Construct } from 'constructs';
 import { LambdaFunctions } from './lambda-functions';
 import { DynamoDbTables } from './dynamodb-tables';
@@ -637,6 +638,82 @@ export class ApiGateway extends Construct {
     // - Include rate limiting (same as Phase 1)
     // - Maintain backward compatibility with Phase 1 endpoints
     //
+    // ============================================================================
+
+    // ============================================================================
+    // PUBLIC ENDPOINTS - No Authentication Required
+    // ============================================================================
+
+    // GET /public/scan/{scanId} - Public scan details for alert landing pages
+    const publicResource = this.restApi.root.addResource('public');
+    const publicScanResource = publicResource.addResource('scan');
+    const publicScanIdResource = publicScanResource.addResource('{scanId}');
+    
+    // Create method with rate limiting and CloudWatch logging
+    publicScanIdResource.addMethod('GET', 
+      new apigateway.LambdaIntegration(props.lambdaFunctions.publicScanDetailHandler, {
+        proxy: true,
+      }), 
+      {
+        // NO apiKeyRequired - public access
+        apiKeyRequired: false,
+        requestParameters: {
+          'method.request.path.scanId': true,
+        },
+        methodResponses: [
+          {
+            statusCode: '200',
+            responseParameters: {
+              'method.response.header.Access-Control-Allow-Origin': true,
+              'method.response.header.Content-Type': true,
+              'method.response.header.Cache-Control': true,
+            },
+          },
+          {
+            statusCode: '400',
+            responseParameters: {
+              'method.response.header.Access-Control-Allow-Origin': true,
+            },
+          },
+          {
+            statusCode: '404',
+            responseParameters: {
+              'method.response.header.Access-Control-Allow-Origin': true,
+            },
+          },
+          {
+            statusCode: '500',
+            responseParameters: {
+              'method.response.header.Access-Control-Allow-Origin': true,
+            },
+          },
+        ],
+      }
+    );
+
+    // Note: Rate limiting is handled at stage level (100 req/sec, 200 burst)
+    // CloudWatch logging is enabled at stage level (INFO level, data tracing)
+    
+    // Optional: Add resource policy to restrict to CloudFront only
+    // Uncomment and configure CloudFront distribution ARN when available
+    /*
+    this.restApi.addToResourcePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        principals: [new iam.AnyPrincipal()],
+        actions: ['execute-api:Invoke'],
+        resources: [publicScanIdResource.arnForExecuteApi()],
+        conditions: {
+          StringEquals: {
+            'aws:Referer': 'https://alerts.spartan.ai/*', // CloudFront domain
+          },
+        },
+      })
+    );
+    */
+
+    // ============================================================================
+    // END PUBLIC ENDPOINTS
     // ============================================================================
   }
 }
