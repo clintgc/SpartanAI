@@ -171,11 +171,63 @@ export class CaptisClient {
         accessKey: this.accessKey,
       });
 
-      const response = await this.client.get<CaptisResolveResponse>(
+      // The GET /scan/{id} endpoint returns { scan: {...} } structure
+      // The scan object contains: id, photo, biometrics, recordList (matches)
+      // We need to transform it to match CaptisResolveResponse format
+      interface CaptisScanResponse {
+        scan: {
+          id: string;
+          photo?: string;
+          biometrics?: any;
+          recordList?: Array<{
+            match: {
+              id: string;
+              score: number;
+              scoreLevel?: 'HIGH' | 'MEDIUM' | 'LOW';
+              subjectId: string;
+            };
+            subject: {
+              id: string;
+              name: string;
+              nameLine?: string;
+              type: string;
+              photo?: string;
+            };
+          }>;
+          status?: string;
+          viewMatchesUrl?: string;
+        };
+      }
+
+      const response = await this.client.get<CaptisScanResponse>(
         `/pub/asi/v4/scan/${scanId}?${params.toString()}`
       );
 
-      return response.data;
+      const scanData = response.data.scan;
+      
+      // Transform recordList to matches format
+      // recordList contains { match: { score, scoreLevel }, subject: { name, type } }
+      const matches = scanData.recordList?.map(record => ({
+        id: record.match.id || record.subject.id,
+        score: record.match.score,
+        scoreLevel: record.match.scoreLevel || (record.match.score > 89 ? 'HIGH' : record.match.score > 70 ? 'MEDIUM' : 'LOW'),
+        subject: {
+          id: record.subject.id,
+          name: record.subject.name || record.subject.nameLine || 'Unknown',
+          type: record.subject.type,
+          photo: record.subject.photo,
+        },
+      })) || [];
+
+      // Return in CaptisResolveResponse format
+      return {
+        id: scanData.id,
+        status: scanData.status || 'COMPLETED',
+        matches: matches.length > 0 ? matches : undefined,
+        biometrics: scanData.biometrics ? (Array.isArray(scanData.biometrics) ? scanData.biometrics : [scanData.biometrics]) : undefined,
+        viewMatchesUrl: scanData.viewMatchesUrl,
+        timedOutFlag: false,
+      } as CaptisResolveResponse;
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const axiosError = error as AxiosError;
@@ -216,13 +268,23 @@ export class CaptisClient {
     const startTime = Date.now();
     let delay = initialDelay;
     let lastError: Error | null = null;
+    let lastResult: CaptisResolveResponse | null = null;
 
     while (Date.now() - startTime < maxDuration) {
       try {
         const result = await this.pollScan(scanId);
+        lastResult = result;
+
+        console.log(`[CaptisClient] Poll result: status=${result.status}, matches=${result.matches?.length || 0}, timedOutFlag=${result.timedOutFlag}`);
+        
+        // Check if we have matches - if yes, return immediately
+        if (result.matches && result.matches.length > 0) {
+          console.log(`[CaptisClient] Found ${result.matches.length} matches, top score: ${result.matches[0].score}%, returning result.`);
+          return result;
+        }
 
         // Check if still processing
-        if (result.timedOutFlag === true || result.status === 'PENDING') {
+        if (result.timedOutFlag === true || result.status === 'PENDING' || result.status === 'PROCESSING') {
           // Wait before next poll
           await this.sleep(delay);
           // Exponential backoff: increase delay up to 30 seconds
@@ -230,10 +292,41 @@ export class CaptisClient {
           continue;
         }
 
-        // Completed or failed
+        // Status is COMPLETED but no matches - wait and poll again
+        // Captis sometimes returns COMPLETED before matches are ready
+        if (result.status === 'COMPLETED' && (!result.matches || result.matches.length === 0)) {
+          console.log(`[CaptisClient] Status COMPLETED but no matches yet. Waiting ${delay}ms before retry...`);
+          await this.sleep(delay);
+          // Exponential backoff: increase delay up to 30 seconds
+          delay = Math.min(delay * 1.5, 30000);
+          continue;
+        }
+
+        // Completed with matches or failed
         return result;
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
+        
+        // For 400 errors, wait and retry - results might appear later
+        // Captis can return 400 when polling too early, but results may come later
+        // However, if we've retried multiple times and still get 400, the scan might not be pollable
+        if (lastError.message.includes('400')) {
+          const elapsed = Date.now() - startTime;
+          // If we've been trying for more than 30 seconds and still getting 400, 
+          // the scan might not support polling - return empty result
+          if (elapsed > 30000 && delay >= 10000) {
+            console.log(`[CaptisClient] Poll returned 400 after ${elapsed}ms - scan may not support polling. Returning empty result.`);
+            return {
+              id: scanId,
+              status: 'COMPLETED',
+              matches: [],
+            } as CaptisResolveResponse;
+          }
+          console.log(`[CaptisClient] Poll returned 400 - waiting ${delay}ms before retry (results may appear later)...`);
+          await this.sleep(delay);
+          delay = Math.min(delay * 1.5, 30000);
+          continue;
+        }
         
         // For 503 errors, retry with backoff
         if (lastError.message.includes('503')) {
@@ -247,7 +340,12 @@ export class CaptisClient {
       }
     }
 
-    // Timeout reached
+    // Timeout reached - return last result if we have one, otherwise throw
+    if (lastResult) {
+      console.log(`[CaptisClient] Polling timeout reached. Returning last result (may have no matches).`);
+      return lastResult;
+    }
+
     throw new Error(`Polling timeout after ${maxDuration}ms. Last error: ${lastError?.message || 'Unknown'}`);
   }
 

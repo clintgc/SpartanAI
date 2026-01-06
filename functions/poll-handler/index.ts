@@ -46,20 +46,50 @@ export const handler = async (event: EventBridgeEvent<'PollScan', PollEvent>): P
           ? 'LOW' 
           : undefined;
 
+    // Build update expression dynamically to avoid issues with undefined values
+    const updateItems: string[] = [];
+    const expressionAttributeValues: Record<string, any> = {
+      ':score': topScore,
+      ':updated': new Date().toISOString(),
+    };
+
+    if (result.status) {
+      updateItems.push('#status = :statusVal');
+      expressionAttributeValues[':statusVal'] = result.status;
+    }
+
+    if (result.viewMatchesUrl) {
+      updateItems.push('viewMatchesUrl = :url');
+      expressionAttributeValues[':url'] = result.viewMatchesUrl;
+    } else {
+      updateItems.push('viewMatchesUrl = :url');
+      expressionAttributeValues[':url'] = null;
+    }
+
+    updateItems.push('topScore = :score');
+    updateItems.push('updatedAt = :updated');
+    
+    // Add matchLevel if calculated
+    if (matchLevel) {
+      updateItems.push('matchLevel = :level');
+      expressionAttributeValues[':level'] = matchLevel;
+    } else {
+      updateItems.push('matchLevel = :level');
+      expressionAttributeValues[':level'] = null;
+    }
+
+    const expressionAttributeNames: Record<string, string> = {};
+    if (result.status) {
+      expressionAttributeNames['#status'] = 'status';
+    }
+
     await docClient.send(
       new UpdateCommand({
         TableName: process.env.SCANS_TABLE_NAME!,
         Key: { scanId },
-        UpdateExpression: 'SET #status = :status, topScore = :score, viewMatchesUrl = :url, updatedAt = :updated',
-        ExpressionAttributeNames: {
-          '#status': 'status',
-        },
-        ExpressionAttributeValues: {
-          ':status': result.status,
-          ':score': topScore,
-          ':url': result.viewMatchesUrl || null,
-          ':updated': new Date().toISOString(),
-        },
+        UpdateExpression: `SET ${updateItems.join(', ')}`,
+        ExpressionAttributeNames: Object.keys(expressionAttributeNames).length > 0 ? expressionAttributeNames : undefined,
+        ExpressionAttributeValues: expressionAttributeValues,
       })
     );
 

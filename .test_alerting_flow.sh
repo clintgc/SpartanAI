@@ -31,7 +31,7 @@ PAYLOAD=$(cat <<JSON
     "cameraID": "test-cam-alert",
     "accountID": "${ACCOUNT}",
     "location": {"lat": 37.7749, "lon": -122.4194},
-    "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+    "timestamp": "2025-12-19T12:00:00Z"
   }
 }
 JSON

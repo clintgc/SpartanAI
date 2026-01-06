@@ -2,8 +2,9 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { v4 as uuidv4 } from 'uuid';
 import { DynamoDbService } from '../../shared/services/dynamodb-service';
 import { CaptisClient } from '../../shared/services/captis-client';
+import { ThresholdService } from '../../shared/services/threshold-service';
 import { ScanRequest, ScanResponse } from '../../shared/models';
-import { DynamoDBDocumentClient, PutCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, PutCommand, UpdateCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { CloudWatchClient, PutMetricDataCommand } from '@aws-sdk/client-cloudwatch';
 import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
@@ -18,6 +19,7 @@ const cloudwatchClient = new CloudWatchClient({});
 const eventBridgeClient = new EventBridgeClient({});
 const ssmClient = new SSMClient({});
 const dbService = new DynamoDbService(process.env.TABLE_PREFIX || 'spartan-ai');
+const thresholdService = new ThresholdService(dbService);
 
 // Cache for SSM parameter values
 let captisAccessKeyCache: string | null = null;
@@ -472,8 +474,71 @@ export const handler = async (
         throw error;
       }
 
-      // If timed out, trigger polling via EventBridge
-      if (captisResponse.timedOutFlag) {
+      // Log full Captis response for debugging
+      log('info', 'Captis response received', {
+        requestId,
+        scanId,
+        captisId: captisResponse.id,
+        status: captisResponse.status,
+        timedOutFlag: captisResponse.timedOutFlag,
+        hasMatches: !!captisResponse.matches,
+        matchesCount: captisResponse.matches?.length || 0,
+        firstMatchScore: captisResponse.matches?.[0]?.score,
+        viewMatchesUrl: captisResponse.viewMatchesUrl,
+        hasBiometrics: !!captisResponse.biometrics,
+        biometricsCount: captisResponse.biometrics?.length || 0,
+        hasCrimes: !!captisResponse.crimes,
+        crimesCount: captisResponse.crimes?.length || 0,
+        fullResponse: JSON.stringify(captisResponse), // Log full response structure
+      });
+
+      // Check if we have results immediately or need to poll
+      const hasImmediateResults = captisResponse.matches && captisResponse.matches.length > 0 && captisResponse.status === 'COMPLETED' && !captisResponse.timedOutFlag;
+      
+      log('info', 'Results check', {
+        requestId,
+        scanId,
+        hasImmediateResults,
+        status: captisResponse.status,
+        timedOutFlag: captisResponse.timedOutFlag,
+        matchesLength: captisResponse.matches?.length || 0,
+      });
+      
+      if (hasImmediateResults && captisResponse.matches && captisResponse.matches.length > 0) {
+        // Extract results immediately and store in DynamoDB
+        const topScore = captisResponse.matches[0].score;
+        const thresholds = await thresholdService.getThresholds(accountID, 'captis');
+        const matchLevel = topScore > thresholds.highThreshold 
+          ? 'HIGH' 
+          : topScore > thresholds.mediumThreshold 
+            ? 'MEDIUM' 
+            : topScore > thresholds.lowThreshold 
+              ? 'LOW' 
+              : undefined;
+
+        // Update scan record with results
+        await docClient.send(
+          new UpdateCommand({
+            TableName: process.env.SCANS_TABLE_NAME!,
+            Key: { scanId },
+            UpdateExpression: 'SET topScore = :score, matchLevel = :level, viewMatchesUrl = :url, updatedAt = :updated',
+            ExpressionAttributeValues: {
+              ':score': topScore,
+              ':level': matchLevel || null,
+              ':url': captisResponse.viewMatchesUrl || null,
+              ':updated': new Date().toISOString(),
+            },
+          })
+        );
+
+        log('info', 'Results extracted immediately from Captis response', { 
+          requestId, 
+          scanId, 
+          topScore,
+          matchLevel,
+        });
+      } else if (captisResponse.timedOutFlag || captisResponse.status !== 'COMPLETED') {
+        // If timed out or not completed, trigger polling via EventBridge
         // Store polling metadata for poll handler
         await docClient.send(
           new UpdateCommand({
@@ -494,7 +559,7 @@ export const handler = async (
               Entries: [
                 {
                   Source: 'spartan-ai.scan',
-                  DetailType: 'Scan Timeout',
+                  DetailType: 'PollScan',
                   Detail: JSON.stringify({
                     scanId,
                     captisId: captisResponse.id,
@@ -517,6 +582,50 @@ export const handler = async (
             errorType: 'EVENTBRIDGE_ERROR',
           });
           // Continue - poll handler can be triggered manually if needed
+        }
+      } else {
+        // Status is COMPLETED but no matches - wait a bit and poll to see if results appear
+        // Captis sometimes returns COMPLETED before matches are ready
+        await docClient.send(
+          new UpdateCommand({
+            TableName: process.env.SCANS_TABLE_NAME!,
+            Key: { scanId },
+            UpdateExpression: 'SET pollingRequired = :polling, captisAccessKey = :key',
+            ExpressionAttributeValues: {
+              ':polling': true,
+              ':key': captisAccessKey,
+            },
+          })
+        );
+
+        try {
+          await eventBridgeClient.send(
+            new PutEventsCommand({
+              Entries: [
+                {
+                  Source: 'spartan-ai.scan',
+                  DetailType: 'PollScan',
+                  Detail: JSON.stringify({
+                    scanId,
+                    captisId: captisResponse.id,
+                    accountID,
+                    captisAccessKey,
+                  }),
+                },
+              ],
+            })
+          );
+          log('info', 'Polling triggered to check for delayed results (COMPLETED but no matches)', { 
+            requestId, 
+            scanId, 
+            captisId: captisResponse.id,
+          });
+        } catch (error) {
+          logError(error, { 
+            requestId, 
+            scanId, 
+            errorType: 'EVENTBRIDGE_ERROR',
+          });
         }
       }
 

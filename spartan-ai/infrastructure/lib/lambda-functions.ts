@@ -74,6 +74,15 @@ export class LambdaFunctions extends Construct {
       },
     });
 
+    // Grant EventBridge PutEvents permission to scan handler
+    this.scanHandler.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ['events:PutEvents'],
+        resources: ['*'],
+      })
+    );
+
     // Poll Handler Lambda
     this.pollHandler = new lambdaNodejs.NodejsFunction(this, 'PollHandler', {
       ...defaultLambdaProps,
@@ -241,6 +250,9 @@ export class LambdaFunctions extends Construct {
     props.tables.accountProfilesTable.grantReadData(this.emailAggregator);
     props.tables.accountProfilesTable.grantReadWriteData(this.thresholdHandler);
 
+    // Grant poll handler permissions for thresholds
+    props.tables.accountProfilesTable.grantReadData(this.pollHandler);
+
     // Grant GDPR deletion handler permissions
     props.tables.scansTable.grantReadWriteData(this.gdprDeletionHandler);
     props.tables.quotasTable.grantReadWriteData(this.gdprDeletionHandler);
@@ -282,14 +294,14 @@ export class LambdaFunctions extends Construct {
 
     weeklyEmailRule.addTarget(new targets.LambdaFunction(this.emailAggregator));
 
-    // EventBridge rule to trigger poll handler for timed-out scans
-    // This would be triggered when a scan times out and needs polling
+    // EventBridge rule to trigger poll handler for scans that need polling
+    // This is triggered when a scan needs polling (timed out or no immediate results)
     const pollScanRule = new events.Rule(this, 'PollScanRule', {
       eventPattern: {
         source: ['spartan-ai.scan'],
-        detailType: ['Scan Timeout'],
+        detailType: ['PollScan', 'Scan Timeout'], // Support both event types
       },
-      description: 'Trigger poll handler for timed-out Captis scans',
+      description: 'Trigger poll handler for Captis scans that need polling',
     });
 
     pollScanRule.addTarget(new targets.LambdaFunction(this.pollHandler));

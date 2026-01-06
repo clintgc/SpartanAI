@@ -1,0 +1,34 @@
+# S3 Image URLs for Testing
+
+## Bucket: spartan-ai-test-images-1767651941
+## Region: us-east-1
+
+## Image URLs:
+
+1. Anthony-FL.jpeg
+   https://spartan-ai-test-images-1767651941.s3.us-east-1.amazonaws.com/Anthony-FL.jpeg
+
+2. ArmedRobbery-MI.webp
+   https://spartan-ai-test-images-1767651941.s3.us-east-1.amazonaws.com/ArmedRobbery-MI.webp
+
+3. ASSAULT-NC2.webp
+   https://spartan-ai-test-images-1767651941.s3.us-east-1.amazonaws.com/ASSAULT-NC2.webp
+
+4. Burglary-OR.webp
+   https://spartan-ai-test-images-1767651941.s3.us-east-1.amazonaws.com/Burglary-OR.webp
+
+## Test Commands:
+
+# Test single image
+./test-scan.sh "https://spartan-ai-test-images-1767651941.s3.us-east-1.amazonaws.com/Anthony-FL.jpeg"
+
+# Test all images
+for url in \
+  "https://spartan-ai-test-images-1767651941.s3.us-east-1.amazonaws.com/Anthony-FL.jpeg" \
+  "https://spartan-ai-test-images-1767651941.s3.us-east-1.amazonaws.com/ArmedRobbery-MI.webp" \
+  "https://spartan-ai-test-images-1767651941.s3.us-east-1.amazonaws.com/ASSAULT-NC2.webp" \
+  "https://spartan-ai-test-images-1767651941.s3.us-east-1.amazonaws.com/Burglary-OR.webp"; do
+  echo "Testing: $url"
+  ./test-scan.sh "$url"
+  sleep 5
+done
