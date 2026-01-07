@@ -162,5 +162,101 @@ describe('poll-handler', () => {
     expect(snsTopics).not.toContain('arn:high');
     expect(snsTopics).not.toContain('arn:med');
   });
+
+  it('stores matches array in DynamoDB', async () => {
+    const matches = [
+      {
+        score: 95,
+        subject: {
+          id: 'subj-1',
+          name: 'TEST SUBJECT',
+          photo: 'base64-image-data',
+        },
+      },
+      { score: 80, subject: { id: 'subj-2' } },
+    ];
+    mockPollUntilComplete.mockResolvedValue({
+      status: 'COMPLETED',
+      matches,
+      viewMatchesUrl: 'https://view',
+    });
+    mockDocSend
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({ Item: { metadata: { location: { lat: 1, lon: 2 } } } });
+
+    await handler(baseEvent);
+
+    const updateCall = mockDocSend.mock.calls[0][0] as any;
+    expect(updateCall.input.ExpressionAttributeValues[':matches']).toEqual(matches);
+  });
+
+  it('stores crimes array in DynamoDB', async () => {
+    const crimes = [
+      { description: 'Test crime 1', type: 'FELONY', date: '2024-01-01', status: 'CONVICTED' },
+      { description: 'Test crime 2', type: 'MISDEMEANOR', date: '2023-06-15', status: 'PENDING' },
+    ];
+    mockPollUntilComplete.mockResolvedValue({
+      status: 'COMPLETED',
+      matches: [{ score: 95, subject: { id: 'subj-1' } }],
+      crimes,
+    });
+    mockDocSend
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({ Item: { metadata: { location: { lat: 1, lon: 2 } } } });
+
+    await handler(baseEvent);
+
+    const updateCall = mockDocSend.mock.calls[0][0] as any;
+    expect(updateCall.input.ExpressionAttributeValues[':crimes']).toEqual(crimes);
+  });
+
+  it('stores null for matches when no matches found', async () => {
+    mockPollUntilComplete.mockResolvedValue({
+      status: 'COMPLETED',
+      matches: [],
+    });
+    mockDocSend
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({ Item: { metadata: { location: { lat: 1, lon: 2 } } } });
+
+    await handler(baseEvent);
+
+    const updateCall = mockDocSend.mock.calls[0][0] as any;
+    expect(updateCall.input.ExpressionAttributeValues[':matches']).toBeNull();
+  });
+
+  it('stores null for crimes when no crimes found', async () => {
+    mockPollUntilComplete.mockResolvedValue({
+      status: 'COMPLETED',
+      matches: [{ score: 95, subject: { id: 'subj-1' } }],
+      crimes: [],
+    });
+    mockDocSend
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({ Item: { metadata: { location: { lat: 1, lon: 2 } } } });
+
+    await handler(baseEvent);
+
+    const updateCall = mockDocSend.mock.calls[0][0] as any;
+    expect(updateCall.input.ExpressionAttributeValues[':crimes']).toBeNull();
+  });
+
+  it('stores image URL when available in result', async () => {
+    const imageUrl = 'https://example.com/image.jpg';
+    mockPollUntilComplete.mockResolvedValue({
+      status: 'COMPLETED',
+      matches: [{ score: 95, subject: { id: 'subj-1' } }],
+      image: imageUrl,
+    });
+    mockDocSend
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({ Item: { metadata: { location: { lat: 1, lon: 2 } } } });
+
+    await handler(baseEvent);
+
+    const updateCall = mockDocSend.mock.calls[0][0] as any;
+    expect(updateCall.input.ExpressionAttributeValues[':image']).toBe(imageUrl);
+    expect(updateCall.input.ExpressionAttributeNames['#image']).toBe('image');
+  });
 });
 

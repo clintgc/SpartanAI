@@ -225,8 +225,9 @@ export class CaptisClient {
       if (scanData.recordList && scanData.recordList.length > 0) {
         // Try to get crimes from the top match's record
         const topRecord = scanData.recordList[0];
-        if (topRecord.crimes && Array.isArray(topRecord.crimes)) {
-          crimes = topRecord.crimes.map((crime: any) => ({
+        const topRecordAny = topRecord as any;
+        if (topRecordAny.crimes && Array.isArray(topRecordAny.crimes)) {
+          crimes = topRecordAny.crimes.map((crime: any) => ({
             description: crime.description || '',
             type: crime.type || '',
             date: crime.date || '',
@@ -235,20 +236,23 @@ export class CaptisClient {
         }
       }
       // Also check if crimes are at the scan level
-      if (!crimes && scanData.crimes) {
-        crimes = Array.isArray(scanData.crimes) 
-          ? scanData.crimes.map((crime: any) => ({
+      const scanDataAny = scanData as any;
+      if (!crimes && scanDataAny.crimes) {
+        crimes = Array.isArray(scanDataAny.crimes) 
+          ? scanDataAny.crimes.map((crime: any) => ({
               description: crime.description || '',
               type: crime.type || '',
               date: crime.date || '',
               status: crime.status || '',
             }))
-          : [{
-              description: scanData.crimes.description || '',
-              type: scanData.crimes.type || '',
-              date: scanData.crimes.date || '',
-              status: scanData.crimes.status || '',
-            }];
+          : typeof scanDataAny.crimes === 'object' && !Array.isArray(scanDataAny.crimes)
+          ? [{
+              description: scanDataAny.crimes.description || '',
+              type: scanDataAny.crimes.type || '',
+              date: scanDataAny.crimes.date || '',
+              status: scanDataAny.crimes.status || '',
+            }]
+          : [];
       }
       
       // Return in CaptisResolveResponse format

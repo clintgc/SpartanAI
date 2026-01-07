@@ -51,6 +51,7 @@ export interface CaptisResolveResponse {
   }>;
   viewMatchesUrl?: string;
   timedOutFlag?: boolean;
+  image?: string; // Image URL or base64 data from Captis response
 }
 
 export interface AlertPayload {

@@ -88,7 +88,7 @@ describe('Alert Handler FCM Integration', () => {
     jest.restoreAllMocks();
   });
 
-  const createMockSnsEvent = (topScore: number): SNSEvent => {
+  const createMockSnsEvent = (topScore: number, viewMatchesUrl?: string): SNSEvent => {
     return {
       Records: [
         {
@@ -108,7 +108,7 @@ describe('Alert Handler FCM Integration', () => {
                 lat: 40.7128,
                 lon: -74.0060,
               },
-              viewMatchesUrl: 'https://example.com/scan/test-scan-123',
+              viewMatchesUrl: viewMatchesUrl || 'https://example.com/scan/test-scan-123',
               accountID: 'test-account-001',
             }),
             Timestamp: new Date().toISOString(),
@@ -136,7 +136,7 @@ describe('Alert Handler FCM Integration', () => {
       ['token-1', 'token-2'],
       expect.objectContaining({
         title: '⚠️ Medium Threat Detected (80%)',
-        body: 'Threat detected. Match level: MEDIUM',
+        body: expect.stringContaining('Threat detected. Match level: MEDIUM'),
         data: expect.objectContaining({
           scanId: 'test-scan-123',
           topScore: '80',
@@ -159,7 +159,7 @@ describe('Alert Handler FCM Integration', () => {
       ['token-1', 'token-2'],
       expect.objectContaining({
         title: '🚨 High Threat Detected (95%)',
-        body: 'Immediate action required. Match level: HIGH',
+        body: expect.stringContaining('Person of interest detected'),
         data: expect.objectContaining({
           threatLevel: 'HIGH',
         }),
@@ -246,5 +246,38 @@ describe('Alert Handler FCM Integration', () => {
     expect(notificationData).toHaveProperty('viewMatchesUrl', 'https://example.com/scan/test-scan-123');
     expect(notificationData).toHaveProperty('accountID', 'test-account-001');
     expect(notificationData).toHaveProperty('timestamp');
+  });
+
+  it('should use viewMatchesUrl from alert payload when provided', async () => {
+    const customUrl = 'https://alerts.spartan.tech/scan/test-scan-123';
+    const snsEvent = createMockSnsEvent(95, customUrl);
+
+    await handler(snsEvent);
+
+    const fcmCall = mockSendNotification.mock.calls[0];
+    const notificationData = fcmCall[1].data;
+    expect(notificationData.viewMatchesUrl).toBe(customUrl);
+  });
+
+  it('should include alert URL in FCM notification body for HIGH threat', async () => {
+    const alertUrl = 'https://alerts.spartan.tech/scan/test-scan-123';
+    const snsEvent = createMockSnsEvent(95, alertUrl);
+
+    await handler(snsEvent);
+
+    const fcmCall = mockSendNotification.mock.calls[0];
+    const notificationBody = fcmCall[1].body;
+    expect(notificationBody).toContain(alertUrl);
+  });
+
+  it('should include alert URL in FCM notification body for MEDIUM threat', async () => {
+    const alertUrl = 'https://alerts.spartan.tech/scan/test-scan-123';
+    const snsEvent = createMockSnsEvent(80, alertUrl);
+
+    await handler(snsEvent);
+
+    const fcmCall = mockSendNotification.mock.calls[0];
+    const notificationBody = fcmCall[1].body;
+    expect(notificationBody).toContain(alertUrl);
   });
 });

@@ -257,5 +257,114 @@ describe('Scan Handler', () => {
     expect(body).toHaveProperty('scanId');
     expect(body.status).toBe('COMPLETED');
   });
+
+  it('should store image URL in metadata when image is provided as URL', async () => {
+    const { DynamoDbService } = require('../../shared/services/dynamodb-service');
+    const { CaptisClient } = require('../../shared/services/captis-client');
+
+    DynamoDbService.prototype.getQuota = jest.fn().mockResolvedValue({
+      scansUsed: 0,
+      scansLimit: 14400,
+      accountID: '550e8400-e29b-41d4-a716-446655440000',
+      year: new Date().getFullYear().toString(),
+    });
+    DynamoDbService.prototype.getConsent = jest.fn().mockResolvedValue({
+      accountID: '550e8400-e29b-41d4-a716-446655440000',
+      consentStatus: true,
+    });
+    DynamoDbService.prototype.incrementQuota = jest.fn().mockResolvedValue(undefined);
+
+    CaptisClient.prototype.resolve = jest.fn().mockResolvedValue({
+      id: 'captis-123',
+    });
+    CaptisClient.prototype.poll = jest.fn().mockResolvedValue({
+      id: 'captis-123',
+      status: 'COMPLETED',
+      timedOutFlag: false,
+      matches: [],
+      topScore: 0,
+    });
+
+    // Use HTTP URL for image
+    const imageUrl = 'https://example.com/test-image.jpg';
+    const eventWithUrl = {
+      ...mockEvent,
+      body: JSON.stringify({
+        image: imageUrl,
+        metadata: {
+          cameraID: 'camera-001',
+          accountID: '550e8400-e29b-41d4-a716-446655440000',
+          location: { lat: 40.7128, lon: -74.0060 },
+          timestamp: new Date().toISOString(),
+        },
+      }),
+    };
+
+    const response = await handler(eventWithUrl);
+    expect(response.statusCode).toBe(200);
+
+    // Verify PutCommand was called with imageUrl in metadata
+    const putCalls = mockDocClientSend.mock.calls.filter(
+      (call: any) => call[0].constructor.name === 'PutCommand'
+    );
+    expect(putCalls.length).toBeGreaterThan(0);
+    const putCall = putCalls[0][0] as any;
+    expect(putCall.input.Item.metadata.imageUrl).toBe(imageUrl);
+  });
+
+  it('should NOT store image URL when image is provided as base64', async () => {
+    const { DynamoDbService } = require('../../shared/services/dynamodb-service');
+    const { CaptisClient } = require('../../shared/services/captis-client');
+
+    DynamoDbService.prototype.getQuota = jest.fn().mockResolvedValue({
+      scansUsed: 0,
+      scansLimit: 14400,
+      accountID: '550e8400-e29b-41d4-a716-446655440000',
+      year: new Date().getFullYear().toString(),
+    });
+    DynamoDbService.prototype.getConsent = jest.fn().mockResolvedValue({
+      accountID: '550e8400-e29b-41d4-a716-446655440000',
+      consentStatus: true,
+    });
+    DynamoDbService.prototype.incrementQuota = jest.fn().mockResolvedValue(undefined);
+
+    CaptisClient.prototype.resolve = jest.fn().mockResolvedValue({
+      id: 'captis-123',
+    });
+    CaptisClient.prototype.poll = jest.fn().mockResolvedValue({
+      id: 'captis-123',
+      status: 'COMPLETED',
+      timedOutFlag: false,
+      matches: [],
+      topScore: 0,
+    });
+
+    // Use base64 string for image (must be > 100 chars to pass validation)
+    const base64Image = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==' + 
+      'A'.repeat(50); // Pad to ensure length > 100
+    const eventWithBase64 = {
+      ...mockEvent,
+      body: JSON.stringify({
+        image: base64Image,
+        metadata: {
+          cameraID: 'camera-001',
+          accountID: '550e8400-e29b-41d4-a716-446655440000',
+          location: { lat: 40.7128, lon: -74.0060 },
+          timestamp: new Date().toISOString(),
+        },
+      }),
+    };
+
+    const response = await handler(eventWithBase64);
+    expect(response.statusCode).toBe(200);
+
+    // Verify PutCommand was called WITHOUT imageUrl in metadata
+    const putCalls = mockDocClientSend.mock.calls.filter(
+      (call: any) => call[0].constructor.name === 'PutCommand'
+    );
+    expect(putCalls.length).toBeGreaterThan(0);
+    const putCall = putCalls[0][0] as any;
+    expect(putCall.input.Item.metadata.imageUrl).toBeUndefined();
+  });
 });
 
