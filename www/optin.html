@@ -508,7 +508,8 @@
 
                 if (response.ok) {
                     if (data.exists) {
-                        const optInDate = data.optInDate || data.consentedAt || data.createdAt;
+                        // Prioritize optInTimestamp (most accurate), then fall back to other fields
+                        const optInDate = data.optInTimestamp || data.optInDate || data.consentedAt || data.createdAt;
                         const formattedDate = formatDate(optInDate);
                         if (formattedDate) {
                             showMessage(`This number is already opted in since ${formattedDate}.`, 'info');
@@ -580,7 +581,8 @@
 
                 if (response.ok) {
                     if (data.optedIn) {
-                        const optInDate = data.optInDate || data.consentedAt || data.createdAt;
+                        // Prioritize optInTimestamp (most accurate), then fall back to other fields
+                        const optInDate = data.optInTimestamp || data.optInDate || data.consentedAt || data.createdAt;
                         const formattedDate = formatDate(optInDate);
                         
                         if (data.existed && formattedDate) {
