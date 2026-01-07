@@ -27,11 +27,13 @@ function handler(event) {
     var request = event.request;
     var uri = request.uri;
     
-    // Rewrite /optout and /optin to their index.html files
+    // Rewrite /optout, /optin, and /privacy to their index.html files
     if (uri === '/optout' || uri === '/optout/') {
         request.uri = '/optout/index.html';
     } else if (uri === '/optin' || uri === '/optin/') {
         request.uri = '/optin/index.html';
+    } else if (uri === '/privacy' || uri === '/privacy/') {
+        request.uri = '/privacy/index.html';
     }
     
     return request;

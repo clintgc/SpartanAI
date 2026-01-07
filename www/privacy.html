@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - Spartan AI</title>
+    <style>
+        /* Reset and Base Styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-dark: #1a1a1a;
+            --bg-card: #2a2a2a;
+            --bg-gradient-start: #1a1a1a;
+            --bg-gradient-end: #00FF88; /* Accent green */
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --accent-green: #00FF88;
+            --accent-orange: #fd7e14;
+            --accent-blue: #007bff;
+            --border-color: #404040;
+            --input-bg: #1f1f1f;
+            --input-border: #404040;
+            --input-focus: #00FF88;
+            --error-color: #dc3545;
+            --success-color: #00FF88;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg-dark);
+            background-image: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 20%, var(--bg-gradient-start) 100%);
+            min-height: 100vh;
+            color: var(--text-primary);
+            line-height: 1.6;
+            position: relative;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        header {
+            background: var(--bg-card);
+            padding: 1rem 1.5rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+
+        .back-button {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-primary);
+            text-decoration: none;
+            font-size: 1rem;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            background: transparent;
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .back-button:hover {
+            background: var(--bg-dark);
+            border-color: var(--accent-green);
+            color: var(--accent-green);
+        }
+
+        .back-button svg {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .logo-image {
+            height: 32px;
+            width: auto;
+        }
+
+        .logo-text {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .logo-text .highlight {
+            color: var(--accent-green);
+        }
+
+        /* Main Container */
+        .main-container {
+            flex: 1;
+            padding: 40px 20px;
+            max-width: 1200px;
+            width: 100%;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        /* Content Card */
+        .content-card {
+            background: var(--bg-card);
+            border-radius: 24px;
+            padding: 60px 50px;
+            max-width: 900px;
+            width: 100%;
+            margin: 0 auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Typography */
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            line-height: 1.2;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        h1 .highlight {
+            color: var(--accent-green);
+        }
+
+        h2 {
+            font-size: 1.75rem;
+            font-weight: 600;
+            line-height: 1.3;
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            line-height: 1.4;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            color: var(--accent-green);
+        }
+
+        p {
+            margin-bottom: 1rem;
+            color: var(--text-secondary);
+            line-height: 1.7;
+        }
+
+        ul, ol {
+            margin-left: 1.5rem;
+            margin-bottom: 1rem;
+            color: var(--text-secondary);
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+            line-height: 1.7;
+        }
+
+        strong {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        a {
+            color: var(--accent-green);
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        a:hover {
+            color: var(--text-primary);
+            text-decoration: underline;
+        }
+
+        .intro {
+            font-size: 1.1rem;
+            margin-bottom: 2rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .intro p {
+            color: var(--text-primary);
+            font-size: 1.05rem;
+        }
+
+        .meta {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .section {
+            margin-bottom: 2.5rem;
+        }
+
+        .section:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Footer */
+        footer {
+            background: var(--bg-card);
+            padding: 2rem 1.5rem;
+            text-align: center;
+            border-top: 1px solid var(--border-color);
+            margin-top: auto;
+        }
+
+        footer p {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        footer a {
+            color: var(--accent-green);
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        footer a:hover {
+            color: var(--text-primary);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .content-card {
+                padding: 40px 30px;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            h2 {
+                font-size: 1.5rem;
+            }
+
+            .header-content {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+
+            .logo-container {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .back-button {
+                margin-left: 0;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .content-card {
+                padding: 30px 20px;
+            }
+
+            h1 {
+                font-size: 1.75rem;
+            }
+
+            h2 {
+                font-size: 1.25rem;
+            }
+
+            .main-container {
+                padding: 20px 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <button class="back-button" onclick="goBack()" aria-label="Go back">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+                </svg>
+                Back
+            </button>
+            <div class="logo-container">
+                <img src="https://www.spartan.tech/img/spartan_logo.png" alt="Spartan AI Logo" class="logo-image" onerror="this.style.display='none';">
+                <span class="logo-text">Spartan <span class="highlight">AI</span></span>
+            </div>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <div class="content-card">
+            <div class="meta">
+                <strong>Effective Date: January 7, 2026</strong><br>
+                <strong>Last Updated: January 7, 2026</strong>
+            </div>
+
+            <div class="intro">
+                <h1>Spartan AI Privacy Policy</h1>
+                <p>
+                    Spartan AI ("we," "our," or "us") is committed to protecting your privacy and ensuring the security of your personal information. This Privacy Policy explains how we collect, use, disclose, and protect the information we gather through our threat detection services, including our API, mobile alerts, and website (collectively, the "Services"). Our Services integrate with third-party systems like Captis Intelligence for facial recognition and threat scanning, but we maintain strict controls over data handling.
+                </p>
+                <p>
+                    We do not sell, rent, or share your personal information with third parties for any purpose outside of what is necessary to provide the Services, and we adhere to data minimization principles. If law enforcement or any government authority attempts to access your personal information or metadata, we will notify you immediately and directly, unless prohibited by law.
+                </p>
+                <p>
+                    This policy applies to all users of our Services, including integrators, end-users, and NOC operators. By using our Services, you consent to the practices described herein. If you do not agree, please do not use the Services.
+                </p>
+            </div>
+
+            <div class="section">
+                <h2>1. Information We Collect</h2>
+                <p>
+                    We collect only the minimum information necessary to provide secure threat detection and alerting. Categories include:
+                </p>
+
+                <h3>Personal Information</h3>
+                <ul>
+                    <li><strong>Contact Details</strong>: Phone numbers provided for SMS or WhatsApp alerts (e.g., during opt-in processes). We store these in E.164 format for delivery purposes only.</li>
+                    <li><strong>Account Information</strong>: For integrators or users with accounts, this may include account IDs, email addresses (if provided for consent updates), and consent status (opt-in/opt-out timestamps).</li>
+                </ul>
+
+                <h3>Metadata and Usage Data</h3>
+                <ul>
+                    <li><strong>Scan Metadata</strong>: When submitting images for scanning (via API or integrations), we collect non-identifying metadata such as timestamps, camera IDs, and general location coordinates (lat/long) to process threats and log for auditing. We do not collect precise geolocation from your device unless explicitly provided in scan requests.</li>
+                    <li><strong>Device and Usage Data</strong>: Automatically collected data like IP addresses, device types, and interaction logs (e.g., API calls) to ensure security, prevent abuse, and improve Services. This helps with quota validation and fraud detection.</li>
+                </ul>
+
+                <h3>Sensitive Data</h3>
+                <ul>
+                    <li><strong>Images and Scans</strong>: User-submitted images for threat detection may contain faces or identifiable elements. These are processed transiently via partners like Captis and are not stored long-term unless required for high-threat logging (anonymized where possible). We do not retain biometric data beyond what's needed for a single scan.</li>
+                </ul>
+
+                <p>
+                    We do not collect:
+                </p>
+                <ul>
+                    <li>Unnecessary personal details (e.g., names, addresses beyond metadata).</li>
+                    <li>Sensitive categories like health, financial, or racial data unless inadvertently included in submitted images (which we process minimally and delete promptly).</li>
+                </ul>
+
+                <p>
+                    Information is collected directly from you (e.g., opt-in forms) or automatically during Service use. For children under 13 (or 16 in some jurisdictions), we do not knowingly collect data; Services are not directed at minors.
+                </p>
+            </div>
+
+            <div class="section">
+                <h2>2. How We Use Your Information</h2>
+                <p>
+                    We use collected information solely for the following purposes:
+                </p>
+                <ul>
+                    <li><strong>Providing Services</strong>: To process scans, detect threats, and deliver alerts (e.g., SMS for HIGH threats via Twilio).</li>
+                    <li><strong>Security and Compliance</strong>: To enforce quotas (e.g., 14,400 scans/year), check consent status, and maintain system integrity (e.g., logging for audits).</li>
+                    <li><strong>Improvements</strong>: Anonymized metadata may be used to enhance AI models or Service performance, but never with identifiable data.</li>
+                    <li><strong>Legal Obligations</strong>: To comply with laws, such as responding to valid subpoenas (with user notification as detailed below).</li>
+                </ul>
+
+                <p>
+                    We retain data only as long as necessary: Phone numbers until opt-out; scan metadata for 30-90 days or as required by law; images deleted immediately post-processing unless high-threat (retained encrypted for 180 days max).
+                </p>
+            </div>
+
+            <div class="section">
+                <h2>3. Sharing and Disclosure of Information</h2>
+                <p>
+                    <strong>No Sharing or Selling</strong>: We do not sell, rent, trade, or share your personal information (including phone numbers, metadata, or scan data) with any third parties for marketing, advertising, or any non-essential purposes. Data is not used for profiling or targeted ads.
+                </p>
+
+                <h3>Limited Disclosures:</h3>
+                <ul>
+                    <li><strong>Service Providers</strong>: We share minimal data with trusted vendors (e.g., Twilio for SMS, AWS for hosting, Captis for scanning) under strict contracts ensuring they process data only for us and maintain equivalent security. These providers are prohibited from using data for their own purposes.</li>
+                    <li><strong>Legal Requirements and Law Enforcement</strong>: We disclose information only if required by law, such as a valid court order, subpoena, or warrant. In such cases, we will immediately and directly notify the affected customer (via email or phone) with details of the request, unless legally prohibited (e.g., gag order). We will challenge overbroad requests and never voluntarily provide data without a binding legal process.</li>
+                    <li><strong>Business Transfers</strong>: If Spartan AI is acquired or merged, your information may be transferred as an asset, but we will notify you and ensure the recipient honors this policy.</li>
+                    <li><strong>With Consent</strong>: Only if you explicitly opt-in for specific sharing (e.g., integrations with partners like Vivint/ADT).</li>
+                </ul>
+
+                <p>
+                    We operate in compliance with laws like CCPA, GDPR (for EU users), and state privacy acts, ensuring no unauthorized cross-border transfers without safeguards (e.g., Standard Contractual Clauses).
+                </p>
+            </div>
+
+            <div class="section">
+                <h2>4. Data Security</h2>
+                <p>
+                    We implement industry-standard measures to protect your data:
+                </p>
+                <ul>
+                    <li><strong>Encryption</strong>: Data in transit (TLS 1.3) and at rest (AWS KMS).</li>
+                    <li><strong>Access Controls</strong>: Least-privilege IAM roles; employee access logged and restricted.</li>
+                    <li><strong>Monitoring</strong>: CloudWatch alarms for anomalies; regular audits.</li>
+                    <li><strong>Incident Response</strong>: In case of a breach, we notify affected users within 72 hours (or sooner per law) and take corrective actions.</li>
+                </ul>
+
+                <p>
+                    Despite these measures, no system is infallible. We cannot guarantee absolute security but commit to robust protections.
+                </p>
+            </div>
+
+            <div class="section">
+                <h2>5. Your Rights and Choices</h2>
+                <p>
+                    You have control over your data:
+                </p>
+                <ul>
+                    <li><strong>Opt-In/Opt-Out</strong>: Manage alerts via our <a href="/optin">opt-in</a>/<a href="/optout">opt-out</a> pages. Opting out deletes phone numbers and stops processing.</li>
+                    <li><strong>Access and Correction</strong>: Request a copy of your data or corrections via <a href="mailto:support@spartan.tech">support@spartan.tech</a>.</li>
+                    <li><strong>Deletion</strong>: Submit a deletion request; we erase data unless legally required to retain (e.g., for audits).</li>
+                    <li><strong>Do Not Sell/Share</strong>: We do not sell data, but you can opt-out of any future sharing via CCPA requests.</li>
+                    <li><strong>Non-Discrimination</strong>: Exercising rights won't affect Service quality or pricing.</li>
+                </ul>
+
+                <p>
+                    For EU/UK users (GDPR): Additional rights include objection, restriction, and portability. Contact our DPO at <a href="mailto:privacy@spartan.tech">privacy@spartan.tech</a>.
+                </p>
+            </div>
+
+            <div class="section">
+                <h2>6. Children's Privacy</h2>
+                <p>
+                    Our Services are not intended for children under 13 (or 16 in some regions). We do not knowingly collect data from minors. If discovered, we delete it immediately.
+                </p>
+            </div>
+
+            <div class="section">
+                <h2>7. Changes to This Privacy Policy</h2>
+                <p>
+                    We may update this policy to reflect changes in practices or laws. Revisions will be posted here with the "Last Updated" date. For material changes, we notify users via email or in-Service notices. Continued use constitutes acceptance.
+                </p>
+            </div>
+
+            <div class="section">
+                <h2>8. Contact Us</h2>
+                <p>
+                    Questions or requests? Contact:<br>
+                    <strong>Spartan AI Privacy Team</strong><br>
+                    Email: <a href="mailto:privacy@spartan.tech">privacy@spartan.tech</a><br>
+                    Address: Salt Lake City, UT
+                </p>
+                <p>
+                    For complaints, you may contact relevant authorities (e.g., FTC in US, ICO in UK).
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>© 2026 LightCam II, Inc. | <a href="/privacy">Privacy</a> | <a href="#terms">Terms</a></p>
+    </footer>
+
+    <script>
+        function goBack() {
+            if (window.history.length > 1) {
+                window.history.back();
+            } else {
+                window.location.href = '/';
+            }
+        }
+
+        // Also support browser back button with keyboard shortcut
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' || (e.altKey && e.key === 'ArrowLeft')) {
+                goBack();
+            }
+        });
+    </script>
+</body>
+</html>
+
