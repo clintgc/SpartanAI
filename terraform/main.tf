@@ -126,14 +126,14 @@ module "s3_alerts" {
 }
 
 # Alerts CloudFront Module
-# Uses certificate ARN from terraform.tfvars (must include alerts.spartan.tech as SAN)
-# If acm_certificate_arn is empty, will use CloudFront default certificate
+# Uses separate certificate ARN for alerts subdomain
+# If acm_certificate_arn_alerts is empty, will use CloudFront default certificate
 module "cloudfront_alerts" {
   source = "./modules/cloudfront_alerts"
 
   domain_name                    = var.domain_name
   s3_bucket_regional_domain_name = module.s3_alerts.alerts_bucket_regional_domain_name
-  acm_certificate_arn            = var.acm_certificate_arn != "" ? var.acm_certificate_arn : ""
+  acm_certificate_arn            = var.acm_certificate_arn_alerts != "" ? var.acm_certificate_arn_alerts : ""
   tags                           = var.tags
 
   depends_on = [module.s3_alerts]

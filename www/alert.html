@@ -15,43 +15,72 @@
         }
 
         :root {
-            --navy: #1a2332;
-            --dark-bg: #0f1419;
+            --bg-dark: #1a1a1a;
+            --bg-card: #2a2a2a;
+            --bg-gradient-start: #1a1a1a;
+            --bg-gradient-end: #00FF88;
             --text-primary: #ffffff;
-            --text-secondary: #b8c5d1;
-            --green: #28a745;
+            --text-secondary: #b0b0b0;
+            --accent-green: #00FF88;
+            --green: #00FF88;
+            --green-hover: #00e677;
             --orange: #fd7e14;
             --red: #dc3545;
             --gray: #6c757d;
             --light-gray: #495057;
-            --border: #2a3441;
+            --border: #404040;
+            --navy: #1a1a1a;
+            --dark-bg: #1a1a1a;
         }
 
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: var(--dark-bg);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg-dark);
+            background-image: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 20%, var(--bg-gradient-start) 100%);
             color: var(--text-primary);
             line-height: 1.6;
             min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
         }
 
         /* Header */
         header {
-            background: var(--navy);
-            padding: 1rem;
+            background: var(--bg-card);
+            padding: 1.25rem 1rem;
             text-align: center;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        header .logo-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
         }
 
         header img {
-            height: 32px;
+            height: 40px;
             width: auto;
+            object-fit: contain;
         }
 
         .logo-text {
             font-size: 1.5rem;
             font-weight: 700;
             color: var(--text-primary);
+            letter-spacing: -0.5px;
+        }
+
+        .logo-text .highlight {
+            color: var(--accent-green);
         }
 
         /* Loading Spinner */
@@ -68,7 +97,7 @@
             width: 48px;
             height: 48px;
             border: 4px solid var(--border);
-            border-top-color: var(--green);
+            border-top-color: var(--accent-green);
             border-radius: 50%;
             animation: spin 1s linear infinite;
         }
@@ -93,7 +122,7 @@
         .container {
             max-width: 600px;
             margin: 0 auto;
-            background: var(--dark-bg);
+            background: transparent;
         }
 
         /* Original Image */
@@ -169,7 +198,8 @@
         }
 
         .progress-bar.high {
-            background: var(--green);
+            background: var(--accent-green);
+            color: #000000;
         }
 
         .progress-bar.medium {
@@ -187,10 +217,11 @@
             gap: 0.75rem;
             margin: 1.5rem 0;
             padding: 1rem;
-            background: var(--navy);
+            background: var(--bg-card);
             border-radius: 8px;
             font-size: 0.9rem;
             color: var(--text-secondary);
+            border: 1px solid var(--border);
         }
 
         .metadata-item {
@@ -212,7 +243,7 @@
         }
 
         .accordion-header {
-            background: var(--navy);
+            background: var(--bg-card);
             padding: 1rem 1.5rem;
             cursor: pointer;
             display: flex;
@@ -221,10 +252,11 @@
             font-weight: 600;
             user-select: none;
             transition: background 0.2s;
+            border-bottom: 1px solid var(--border);
         }
 
         .accordion-header:hover {
-            background: #222d3d;
+            background: rgba(0, 255, 136, 0.1);
         }
 
         .accordion-header::after {
@@ -241,7 +273,7 @@
             max-height: 0;
             overflow: hidden;
             transition: max-height 0.3s ease;
-            background: var(--dark-bg);
+            background: var(--bg-card);
         }
 
         .accordion-content.active {
@@ -297,7 +329,7 @@
         .disclaimer {
             margin: 2rem 0;
             padding: 1rem;
-            background: var(--navy);
+            background: var(--bg-card);
             border-left: 4px solid var(--orange);
             border-radius: 4px;
             font-size: 0.85rem;
@@ -332,7 +364,7 @@
 
         /* Footer */
         footer {
-            background: var(--navy);
+            background: var(--bg-card);
             padding: 2rem 1.5rem;
             text-align: center;
             margin-top: 3rem;
@@ -370,8 +402,10 @@
 </head>
 <body>
     <header>
-        <img src="https://www.spartan.tech/logo.png" alt="Spartan AI Logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-        <span class="logo-text" style="display: none;">Threat Detection Alert</span>
+        <div class="logo-container">
+            <img src="https://www.spartan.tech/img/spartan_logo.png" alt="Spartan AI Logo" onerror="this.style.display='none';">
+            <span class="logo-text">Spartan <span class="highlight">AI</span></span>
+        </div>
     </header>
 
     <div class="container">
@@ -469,7 +503,7 @@
 
     <footer>
         <p>Powered by advanced AI threat detection</p>
-        <img src="https://www.spartan.tech/logo.png" alt="Spartan AI" onerror="this.style.display='none';">
+        <img src="https://www.spartan.tech/img/spartan_logo.png" alt="Spartan AI" onerror="this.style.display='none';">
     </footer>
 
     <script>

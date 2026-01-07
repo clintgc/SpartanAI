@@ -17,7 +17,13 @@ variable "environment" {
 }
 
 variable "acm_certificate_arn" {
-  description = "ARN of the ACM certificate for CloudFront (must be in us-east-1)"
+  description = "ARN of the ACM certificate for main site CloudFront (www.spartan.tech and spartan.tech) - must be in us-east-1"
+  type        = string
+  default     = ""
+}
+
+variable "acm_certificate_arn_alerts" {
+  description = "ARN of the ACM certificate for alerts CloudFront (alerts.spartan.tech) - must be in us-east-1"
   type        = string
   default     = ""
 }
