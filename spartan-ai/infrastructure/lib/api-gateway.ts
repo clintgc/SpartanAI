@@ -712,6 +712,74 @@ export class ApiGateway extends Construct {
     );
     */
 
+    // POST /api/v1/optout - Public opt-out endpoint (no authentication required)
+    const optoutResource = api.addResource('optout');
+    
+    optoutResource.addMethod('POST',
+      new apigateway.LambdaIntegration(props.lambdaFunctions.optoutHandler, {
+        proxy: true,
+      }),
+      {
+        // NO apiKeyRequired - public access
+        apiKeyRequired: false,
+        methodResponses: [
+          {
+            statusCode: '200',
+            responseParameters: {
+              'method.response.header.Access-Control-Allow-Origin': true,
+              'method.response.header.Content-Type': true,
+            },
+          },
+          {
+            statusCode: '400',
+            responseParameters: {
+              'method.response.header.Access-Control-Allow-Origin': true,
+            },
+          },
+          {
+            statusCode: '500',
+            responseParameters: {
+              'method.response.header.Access-Control-Allow-Origin': true,
+            },
+          },
+        ],
+      }
+    );
+
+    // POST /api/v1/optin - Public opt-in endpoint (no authentication required)
+    const optinResource = api.addResource('optin');
+    
+    optinResource.addMethod('POST',
+      new apigateway.LambdaIntegration(props.lambdaFunctions.optinHandler, {
+        proxy: true,
+      }),
+      {
+        // NO apiKeyRequired - public access
+        apiKeyRequired: false,
+        methodResponses: [
+          {
+            statusCode: '200',
+            responseParameters: {
+              'method.response.header.Access-Control-Allow-Origin': true,
+              'method.response.header.Content-Type': true,
+            },
+          },
+          {
+            statusCode: '400',
+            responseParameters: {
+              'method.response.header.Access-Control-Allow-Origin': true,
+            },
+          },
+          {
+            statusCode: '500',
+            responseParameters: {
+              'method.response.header.Access-Control-Allow-Origin': true,
+            },
+          },
+        ],
+      }
+    );
+
     // ============================================================================
     // END PUBLIC ENDPOINTS
     // ============================================================================

@@ -30,6 +30,8 @@ export class LambdaFunctions extends Construct {
   public readonly gdprDeletionHandler: lambda.Function;
   public readonly thresholdHandler: lambda.Function;
   public readonly demoRequestHandler: lambda.Function;
+  public readonly optoutHandler: lambda.Function;
+  public readonly optinHandler: lambda.Function;
 
   constructor(scope: Construct, id: string, props: LambdaFunctionsProps) {
     super(scope, id);
@@ -354,6 +356,58 @@ export class LambdaFunctions extends Construct {
 
     // Grant SNS publish permission for consent handler
     props.snsTopics.consentUpdateTopic.grantPublish(this.consentHandler);
+
+    // Optout Handler Lambda (public endpoint, no authentication)
+    this.optoutHandler = new lambdaNodejs.NodejsFunction(this, 'OptoutHandler', {
+      functionName: 'spartan-ai-optout-handler',
+      entry: path.join(rootFunctionsPath, 'optout-handler/index.ts'),
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'handler',
+      timeout: cdk.Duration.seconds(10),
+      memorySize: 256,
+      environment: {
+        DEVICE_TOKENS_TABLE: props.tables.deviceTokensTable.tableName,
+        ACCOUNT_PROFILES_TABLE: props.tables.accountProfilesTable.tableName,
+      },
+      bundling: {
+        minify: true,
+        sourceMap: true,
+        target: 'es2020',
+        externalModules: ['@aws-sdk/*'],
+      },
+    });
+
+    // Grant DynamoDB permissions for optout handler
+    // Query/Scan/Delete on device-tokens table
+    props.tables.deviceTokensTable.grantReadWriteData(this.optoutHandler);
+    // Scan on account-profiles table (to find accounts by phoneNumber)
+    props.tables.accountProfilesTable.grantReadData(this.optoutHandler);
+
+    // Optin Handler Lambda (public endpoint, no authentication)
+    this.optinHandler = new lambdaNodejs.NodejsFunction(this, 'OptinHandler', {
+      functionName: 'spartan-ai-optin-handler',
+      entry: path.join(rootFunctionsPath, 'optin-handler/index.ts'),
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'handler',
+      timeout: cdk.Duration.seconds(10),
+      memorySize: 256,
+      environment: {
+        ACCOUNT_PROFILES_TABLE: props.tables.accountProfilesTable.tableName,
+        DEVICE_TOKENS_TABLE: props.tables.deviceTokensTable.tableName,
+      },
+      bundling: {
+        minify: true,
+        sourceMap: true,
+        target: 'es2020',
+        externalModules: ['@aws-sdk/*'],
+      },
+    });
+
+    // Grant DynamoDB permissions for optin handler
+    // PutItem/UpdateItem/Scan on account-profiles table
+    props.tables.accountProfilesTable.grantReadWriteData(this.optinHandler);
+    // Optional: PutItem on device-tokens table (for placeholder token)
+    props.tables.deviceTokensTable.grantWriteData(this.optinHandler);
 
     // ============================================================================
     // PHASE 2 PLACEHOLDERS - ADDITIONAL LAMBDA FUNCTIONS (2027 Roadmap)
