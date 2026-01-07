@@ -16,6 +16,29 @@ resource "aws_cloudfront_origin_access_control" "s3_oac" {
   signing_protocol                  = "sigv4"
 }
 
+# CloudFront Function to rewrite /optout and /optin to their index.html files
+resource "aws_cloudfront_function" "url_rewrite" {
+  name    = "${replace(var.domain_name, ".", "-")}-url-rewrite"
+  runtime = "cloudfront-js-1.0"
+  comment = "Rewrite /optout and /optin to their index.html files for ${var.domain_name}"
+  publish = true
+  code    = <<-EOF
+function handler(event) {
+    var request = event.request;
+    var uri = request.uri;
+    
+    // Rewrite /optout and /optin to their index.html files
+    if (uri === '/optout' || uri === '/optout/') {
+        request.uri = '/optout/index.html';
+    } else if (uri === '/optin' || uri === '/optin/') {
+        request.uri = '/optin/index.html';
+    }
+    
+    return request;
+}
+EOF
+}
+
 # CloudFront distribution for www subdomain
 resource "aws_cloudfront_distribution" "website" {
   enabled             = true
@@ -49,6 +72,12 @@ resource "aws_cloudfront_distribution" "website" {
     default_ttl            = 3600
     max_ttl                = 86400
     compress               = true
+
+    # Associate CloudFront function to rewrite /optout paths
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.url_rewrite.arn
+    }
   }
 
 

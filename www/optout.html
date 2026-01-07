@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Opt Out - Spartan AI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-dark: #1a1a1a;
+            --bg-card: #2a2a2a;
+            --bg-gradient-start: #1a1a1a;
+            --bg-gradient-end: #00FF88;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --accent-green: #00FF88;
+            --accent-orange: #fd7e14;
+            --accent-blue: #007bff;
+            --border-color: #404040;
+            --input-bg: #1f1f1f;
+            --input-border: #404040;
+            --input-focus: #00FF88;
+            --error-color: #dc3545;
+            --success-color: #00FF88;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg-dark);
+            background-image: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 20%, var(--bg-gradient-start) 100%);
+            min-height: 100vh;
+            color: var(--text-primary);
+            line-height: 1.6;
+            position: relative;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+
+        /* Main Container */
+        .main-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex: 1;
+            padding: 40px 20px;
+            position: relative;
+        }
+
+        /* Content Card */
+        .content-card {
+            background: var(--bg-card);
+            border-radius: 24px;
+            padding: 60px 50px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Logo in Card */
+        .logo-container {
+            margin-bottom: 40px;
+            text-align: center;
+        }
+
+        .logo-container a {
+            display: inline-block;
+            text-decoration: none;
+        }
+
+        .logo-square {
+            width: 120px;
+            height: 120px;
+            background: transparent;
+            border-radius: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            overflow: visible;
+            margin: 0 auto;
+            transition: opacity 0.3s ease;
+        }
+
+        .logo-square:hover {
+            opacity: 0.8;
+        }
+
+        .logo-image {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        /* Typography */
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            line-height: 1.2;
+            margin-bottom: 20px;
+            color: var(--text-primary);
+            text-align: center;
+        }
+
+        h1 .highlight {
+            color: var(--accent-green);
+        }
+
+        .subtitle {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            margin-bottom: 40px;
+            text-align: center;
+        }
+
+        /* Form */
+        .form-group {
+            margin-bottom: 30px;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+        }
+
+        input[type="tel"] {
+            width: 100%;
+            padding: 14px 18px;
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            font-family: inherit;
+            transition: all 0.3s ease;
+        }
+
+        input[type="tel"]:focus {
+            outline: none;
+            border-color: var(--input-focus);
+            box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.1);
+        }
+
+        input[type="tel"]::placeholder {
+            color: var(--text-secondary);
+        }
+
+        /* Button */
+        .btn {
+            padding: 14px 32px;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .btn-primary {
+            background: var(--accent-green);
+            color: #000000;
+            font-weight: 700;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0, 255, 136, 0.4);
+            background: #00e677;
+        }
+
+        .btn-primary:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* Loading Spinner */
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(0, 0, 0, 0.3);
+            border-top-color: #000000;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Messages */
+        .message {
+            margin-top: 20px;
+            padding: 16px 20px;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            text-align: center;
+            display: none;
+        }
+
+        .message.show {
+            display: block;
+        }
+
+        .message-success {
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid var(--success-color);
+            color: var(--success-color);
+        }
+
+        .message-info {
+            background: rgba(176, 192, 224, 0.1);
+            border: 1px solid var(--text-secondary);
+            color: var(--text-secondary);
+        }
+
+        .message-error {
+            background: rgba(220, 53, 69, 0.1);
+            border: 1px solid var(--error-color);
+            color: var(--error-color);
+        }
+
+        /* Footer */
+        footer {
+            background: var(--bg-card);
+            padding: 2rem 1.5rem;
+            text-align: center;
+            border-top: 1px solid var(--border-color);
+            margin-top: auto;
+        }
+
+        footer p {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        footer a {
+            color: var(--accent-green);
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        footer a:hover {
+            color: var(--text-primary);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .content-card {
+                padding: 40px 30px;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            .subtitle {
+                font-size: 1rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .content-card {
+                padding: 30px 20px;
+            }
+
+            h1 {
+                font-size: 1.75rem;
+            }
+
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="content-card">
+            <!-- Logo -->
+            <div class="logo-container">
+                <a href="/" title="Go to homepage">
+                    <div class="logo-square">
+                        <img src="https://www.spartan.tech/img/spartan_logo.png" alt="Spartan AI Logo" class="logo-image" onerror="this.style.display='none';">
+                    </div>
+                </a>
+            </div>
+
+            <!-- Heading -->
+            <h1>Opt Out of <span class="highlight">Threat Alerts</span></h1>
+            <p class="subtitle">Enter your US phone number to stop receiving alerts.</p>
+
+            <!-- Form -->
+            <form id="optout-form" novalidate>
+                <div class="form-group">
+                    <label for="phoneNumber">Phone Number</label>
+                    <input 
+                        type="tel" 
+                        id="phoneNumber" 
+                        name="phoneNumber" 
+                        placeholder="(555) 123-4567" 
+                        autocomplete="tel"
+                        maxlength="17"
+                    >
+                </div>
+
+                <button type="submit" class="btn btn-primary" id="submit-btn">
+                    <span id="btn-text">Submit Opt-Out</span>
+                    <span id="btn-spinner" class="spinner" style="display: none;"></span>
+                </button>
+
+                <!-- Messages -->
+                <div id="message" class="message"></div>
+            </form>
+        </div>
+    </div>
+
+    <footer>
+        <p>© 2026 LightCam II, Inc. | <a href="#privacy">Privacy</a></p>
+    </footer>
+
+    <script>
+        const form = document.getElementById('optout-form');
+        const phoneInput = document.getElementById('phoneNumber');
+        const submitBtn = document.getElementById('submit-btn');
+        const btnText = document.getElementById('btn-text');
+        const btnSpinner = document.getElementById('btn-spinner');
+        const messageDiv = document.getElementById('message');
+
+        // Format phone number as user types
+        phoneInput.addEventListener('input', function(e) {
+            // Remove all non-digits
+            let digits = e.target.value.replace(/\D/g, '');
+            
+            // Limit to 11 digits max (10 digits + optional leading 1)
+            if (digits.length > 11) {
+                digits = digits.substring(0, 11);
+            }
+            
+            // Determine the full phone number (always with country code 1)
+            let phoneDigits = '';
+            if (digits.length === 0) {
+                phoneDigits = '';
+            } else if (digits.length === 11 && digits.startsWith('1')) {
+                // User entered 11 digits starting with 1
+                phoneDigits = digits;
+            } else if (digits.length === 10) {
+                // User entered 10 digits, prepend 1
+                phoneDigits = '1' + digits;
+            } else if (digits.length < 10) {
+                // User is still typing (less than 10 digits)
+                // Don't add 1 yet, but format what they have
+                phoneDigits = digits;
+            } else {
+                // Edge case: 11 digits not starting with 1, use last 10
+                phoneDigits = '1' + digits.substring(digits.length - 10);
+            }
+            
+            // Format for display: +1 (XXX) XXX-XXXX
+            let displayValue = '';
+            if (phoneDigits.length === 0) {
+                displayValue = '';
+            } else if (phoneDigits.length === 11 && phoneDigits.startsWith('1')) {
+                // Full number with country code: +1 (XXX) XXX-XXXX
+                displayValue = '+1 (' + phoneDigits.substring(1, 4) + ') ' + 
+                              phoneDigits.substring(4, 7) + '-' + 
+                              phoneDigits.substring(7, 11);
+            } else if (phoneDigits.length === 10) {
+                // 10 digits: format as +1 (XXX) XXX-XXXX (auto-add country code)
+                displayValue = '+1 (' + phoneDigits.substring(0, 3) + ') ' + 
+                              phoneDigits.substring(3, 6) + '-' + 
+                              phoneDigits.substring(6, 10);
+            } else if (phoneDigits.length > 0 && phoneDigits.length < 10) {
+                // Partial number: show as-is while typing (no formatting yet)
+                displayValue = phoneDigits;
+            } else {
+                displayValue = phoneDigits;
+            }
+            
+            // Update the input field with formatted value
+            e.target.value = displayValue;
+            
+            // Store raw E.164 format for submission (+1XXXXXXXXXX)
+            if (phoneDigits.length === 11 && phoneDigits.startsWith('1')) {
+                e.target.dataset.rawValue = '+' + phoneDigits;
+            } else if (phoneDigits.length === 10) {
+                e.target.dataset.rawValue = '+1' + phoneDigits;
+            } else {
+                e.target.dataset.rawValue = '';
+            }
+            
+            // Check phone number if we have a valid 10-digit number
+            if (phoneDigits.length === 10 || (phoneDigits.length === 11 && phoneDigits.startsWith('1'))) {
+                const rawValue = phoneDigits.length === 11 && phoneDigits.startsWith('1') 
+                    ? '+' + phoneDigits 
+                    : '+1' + phoneDigits;
+                // Debounce the check
+                clearTimeout(phoneInput.checkTimeout);
+                phoneInput.checkTimeout = setTimeout(() => {
+                    checkPhoneNumber(rawValue);
+                }, 500); // Wait 500ms after user stops typing
+            } else {
+                // Clear any existing check message if number is incomplete
+                clearTimeout(phoneInput.checkTimeout);
+                hideMessage();
+            }
+        });
+
+        // Add blur event to check when user leaves the field
+        phoneInput.addEventListener('blur', function() {
+            const phoneNumber = phoneInput.dataset.rawValue;
+            if (phoneNumber && /^\+1[0-9]{10}$/.test(phoneNumber)) {
+                checkPhoneNumber(phoneNumber);
+            }
+        });
+
+        // Function to check if phone number exists in system
+        let isCheckingPhone = false;
+        async function checkPhoneNumber(phoneNumber) {
+            if (isCheckingPhone) return; // Prevent concurrent checks
+            if (!phoneNumber || !/^\+1[0-9]{10}$/.test(phoneNumber)) return;
+
+            isCheckingPhone = true;
+            try {
+                const response = await fetch(
+                    `https://yedpdu8io5.execute-api.us-east-1.amazonaws.com/v1/api/v1/optout?check=true`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            phoneNumber: phoneNumber
+                        })
+                    }
+                );
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    if (data.exists) {
+                        showMessage('This number is registered in our system. You can opt out below.', 'info');
+                    } else {
+                        showMessage('This number is not in our system and will not receive messages from Spartan AI.', 'info');
+                    }
+                } else {
+                    // Silently fail - don't show error for check, just proceed
+                    console.error('Phone check error:', data);
+                }
+            } catch (error) {
+                // Silently fail - don't show error for check
+                console.error('Phone check error:', error);
+            } finally {
+                isCheckingPhone = false;
+            }
+        }
+
+        // Handle form submission
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            // Get raw E.164 format from data attribute or parse from input
+            let phoneNumber = phoneInput.dataset.rawValue;
+            
+            // If no stored value, try to parse from input
+            if (!phoneNumber) {
+                let digits = phoneInput.value.replace(/\D/g, '');
+                if (digits.length === 10) {
+                    phoneNumber = '+1' + digits;
+                } else if (digits.length === 11 && digits.startsWith('1')) {
+                    phoneNumber = '+' + digits;
+                } else {
+                    showMessage('Please enter a valid 10-digit US phone number', 'error');
+                    return;
+                }
+            }
+            
+            // Validate E.164 format (+1 followed by 10 digits)
+            if (!/^\+1[0-9]{10}$/.test(phoneNumber)) {
+                showMessage('Please enter a valid 10-digit US phone number (e.g., 5551234567)', 'error');
+                phoneInput.focus();
+                phoneInput.select();
+                return;
+            }
+
+            // Show loading state
+            submitBtn.disabled = true;
+            btnText.style.display = 'none';
+            btnSpinner.style.display = 'inline-block';
+            // Clear any check message before showing submission result
+            hideMessage();
+
+            try {
+                const response = await fetch('https://yedpdu8io5.execute-api.us-east-1.amazonaws.com/v1/api/v1/optout', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        phoneNumber: phoneNumber
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    if (data.removed) {
+                        showMessage('Successfully opted out. You will no longer receive threat alerts.', 'success');
+                        form.reset();
+                        phoneInput.dataset.rawValue = '';
+                    } else {
+                        showMessage('This number is not in our system and will not receive messages from Spartan AI.', 'info');
+                    }
+                } else {
+                    const errorMsg = data.message || data.error || 'An error occurred. Please try again.';
+                    showMessage(errorMsg, 'error');
+                }
+            } catch (error) {
+                console.error('Opt-out error:', error);
+                showMessage('Network error. Please check your connection and try again.', 'error');
+            } finally {
+                // Reset button state
+                submitBtn.disabled = false;
+                btnText.style.display = 'inline';
+                btnSpinner.style.display = 'none';
+            }
+        });
+
+        function showMessage(text, type) {
+            messageDiv.textContent = text;
+            messageDiv.className = 'message show message-' + type;
+        }
+
+        function hideMessage() {
+            messageDiv.className = 'message';
+            messageDiv.textContent = '';
+        }
+    </script>
+</body>
+</html>
+
