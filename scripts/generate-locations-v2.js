@@ -384,10 +384,36 @@ function getRandomCameraId() {
   return `Parking-Lot-Cam-${String(num).padStart(2, '0')}`;
 }
 
-function addRandomOffset(lat, lon) {
+function addRandomOffset(lat, lon, cityName = '') {
   // Add small random offset (±0.02) to spread stores without hitting water
-  const latOffset = (Math.random() - 0.5) * 0.04; // ±0.02
-  const lonOffset = (Math.random() - 0.5) * 0.04; // ±0.02
+  // For coastal cities, bias offsets inland to avoid water
+  
+  // Detect coastal cities (west coast = negative longitude, east coast = positive)
+  const isWestCoast = lon < -120; // California, Oregon, Washington
+  const isEastCoast = lon > -75 && lat < 45; // East coast states
+  
+  let latOffset = (Math.random() - 0.5) * 0.04; // ±0.02
+  let lonOffset = (Math.random() - 0.5) * 0.04; // ±0.02
+  
+  // For west coast cities, bias eastward (less negative lon = inland)
+  if (isWestCoast) {
+    // Reduce westward offset (make lon less negative)
+    lonOffset = Math.max(lonOffset, -0.01); // Prefer eastward/inland
+  }
+  
+  // For east coast cities, bias westward (more negative lon = inland)
+  if (isEastCoast) {
+    // Reduce eastward offset
+    lonOffset = Math.min(lonOffset, 0.01); // Prefer westward/inland
+  }
+  
+  // For specific problematic coastal cities, use smaller offsets
+  const coastalCities = ['San Francisco', 'Oakland', 'Long Beach', 'San Diego'];
+  if (coastalCities.includes(cityName)) {
+    latOffset *= 0.5; // Half the offset
+    lonOffset *= 0.5;
+  }
+  
   return {
     lat: lat + latOffset,
     lon: lon + lonOffset
@@ -428,7 +454,7 @@ function generateLocations() {
     for (let i = 0; i < stateCount; i++) {
       // Randomly select a city from the state's major cities
       const cityData = cities[Math.floor(Math.random() * cities.length)];
-      const coords = addRandomOffset(cityData.lat, cityData.lon);
+      const coords = addRandomOffset(cityData.lat, cityData.lon, cityData.city);
       
       locations.push({
         storeId: `lowes-${String(storeCounter).padStart(4, '0')}`,

@@ -34,6 +34,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Initialize managers
     MapManager.initMap();
+    ScanLogManager.init(); // Initialize scan log scroll tracking
     
     // Pre-load test images
     try {
@@ -1073,6 +1074,34 @@ const BatchScanEngine = {
 
 // Scan Log Manager
 const ScanLogManager = {
+    userScrolled: false, // Track if user manually scrolled
+    scrollTimeout: null, // Timeout to reset scroll flag
+    
+    init() {
+        // Set up scroll listener for scan logs table container
+        const tableContainer = document.querySelector('.table-container');
+        if (tableContainer) {
+            tableContainer.addEventListener('scroll', () => {
+                this.handleUserScroll();
+            });
+        }
+    },
+    
+    handleUserScroll() {
+        // User is scrolling manually - pause auto-scroll
+        this.userScrolled = true;
+        
+        // Clear existing timeout
+        if (this.scrollTimeout) {
+            clearTimeout(this.scrollTimeout);
+        }
+        
+        // Reset flag after user stops scrolling for 2 seconds
+        this.scrollTimeout = setTimeout(() => {
+            this.userScrolled = false;
+        }, 2000);
+    },
+    
     addLogEntry(entry) {
         scanLogs.push(entry);
         this.renderLogs();
@@ -1092,6 +1121,7 @@ const ScanLogManager = {
     
     renderLogs() {
         const tbody = document.getElementById('scanLogsBody');
+        const tableContainer = tbody.closest('.table-container');
         tbody.innerHTML = '';
         
         if (scanLogs.length === 0) {
@@ -1123,8 +1153,10 @@ const ScanLogManager = {
             tbody.appendChild(row);
         });
         
-        // Auto-scroll to top
-        tbody.parentElement.scrollTop = 0;
+        // Auto-scroll to top only if user hasn't manually scrolled
+        if (tableContainer && !this.userScrolled) {
+            tableContainer.scrollTop = 0;
+        }
     },
     
     updateCount() {
@@ -1195,6 +1227,11 @@ const POIPanelManager = {
     showPOI(scanData) {
         const panel = document.getElementById('poiPanel');
         const content = document.getElementById('poiContent');
+        
+        // Scroll POI content to top when loading new alert
+        if (content) {
+            content.scrollTop = 0;
+        }
         
         console.log('Showing POI panel with data:', scanData);
         
