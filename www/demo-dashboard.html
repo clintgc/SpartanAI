@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spartan AI Demo Dashboard - Lowe's Threat Monitoring</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="css/demo-dashboard.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="dashboard-header">
+        <div class="header-content">
+            <div class="logo-group">
+                <img src="img/spartan_logo.png" alt="Spartan AI" class="logo spartan-logo" id="spartanLogo" title="Click to start batch scan">
+                <span class="logo-separator">×</span>
+                <div class="lowes-logo-text" id="lowesLogo" title="Click to load locations">LOWE'S</div>
+            </div>
+            <div class="status-indicator" id="statusIndicator">
+                <span class="status-dot"></span>
+                <span class="status-text">Ready</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Dashboard Container -->
+    <div class="dashboard-container">
+        <!-- Left Column: Map (60%) -->
+        <div class="map-column">
+            <div class="map-header">
+                <h2>Nationwide Threat Monitoring</h2>
+                <div class="map-stats">
+                    <span id="locationCount">0</span> locations loaded
+                </div>
+            </div>
+            <div id="map" class="map-container"></div>
+        </div>
+
+        <!-- Center Column: Logs & Alerts (25%) -->
+        <div class="center-column">
+            <!-- Scan Logs Table -->
+            <div class="logs-section">
+                <div class="section-header">
+                    <h3>Scan Logs</h3>
+                    <span class="scan-count" id="scanCount">0</span>
+                </div>
+                <div class="table-container">
+                    <table class="scan-logs-table" id="scanLogsTable">
+                        <thead>
+                            <tr>
+                                <th>Location</th>
+                                <th>Store</th>
+                                <th>Camera</th>
+                                <th>Time</th>
+                                <th>Status</th>
+                                <th>Score</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scanLogsBody">
+                            <tr class="empty-state">
+                                <td colspan="6">No scans yet. Click Spartan AI logo to start.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- High-Threat Alerts Queue -->
+            <div class="alerts-section">
+                <div class="section-header">
+                    <h3>High-Threat Alerts</h3>
+                    <span class="alert-badge" id="alertCount">0</span>
+                </div>
+                <div class="alerts-queue" id="alertsQueue">
+                    <div class="empty-state">No high-threat alerts</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: POI Panel (15%) -->
+        <div class="poi-column" id="poiColumn">
+            <div class="poi-panel" id="poiPanel">
+                <div class="poi-header">
+                    <h3>Person of Interest</h3>
+                    <button class="close-btn" id="closePOI">×</button>
+                </div>
+                <div class="poi-content" id="poiContent">
+                    <div class="empty-state">Select an alert to view details</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Configuration Modal (hidden by default, shown on first load) -->
+    <div class="modal-overlay" id="configModal">
+        <div class="modal-content">
+            <h2>Demo Configuration</h2>
+            <p>Enter your API Gateway URL and API Key to enable real scans.</p>
+            <form id="configForm">
+                <div class="form-group">
+                    <label for="apiBaseUrl">API Gateway Base URL:</label>
+                    <input type="text" id="apiBaseUrl" placeholder="https://your-api-gateway-url.amazonaws.com/v1" required>
+                </div>
+                <div class="form-group">
+                    <label for="apiKey">API Key:</label>
+                    <input type="text" id="apiKey" placeholder="Enter your API key" required>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Save Configuration</button>
+                    <button type="button" class="btn btn-secondary" id="skipConfig">Skip (Demo Mode)</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    
+    <!-- Image Loader -->
+    <script src="js/image-loader.js"></script>
+    
+    <!-- Dashboard JavaScript -->
+    <script src="js/demo-dashboard.js"></script>
+</body>
+</html>
+
