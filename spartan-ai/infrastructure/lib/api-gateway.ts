@@ -316,6 +316,7 @@ export class ApiGateway extends Construct {
       apiKeyRequired: true,
       requestParameters: {
         'method.request.path.id': true,
+        'method.request.querystring.accountID': false, // Optional query parameter for CORS compatibility
       },
       methodResponses: [
         {

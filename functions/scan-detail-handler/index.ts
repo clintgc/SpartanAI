@@ -24,8 +24,9 @@ export const handler = async (
       };
     }
 
-    // Get authenticated accountID from header or API context
+    // Get authenticated accountID from header, query parameter, or API context
     const authenticatedAccountID = event.headers['x-account-id'] || 
+                                    event.queryStringParameters?.accountID ||
                                     event.requestContext.identity?.accountId;
 
     if (!authenticatedAccountID) {
