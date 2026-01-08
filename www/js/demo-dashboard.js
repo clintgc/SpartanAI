@@ -18,6 +18,7 @@ let locations = [];
 let map = null;
 let heatLayer = null;
 let markers = {};
+let pulsatingMarkers = {}; // Track pulsating markers separately
 let scanLogs = [];
 let alerts = [];
 let activePolling = new Map();
@@ -45,48 +46,90 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     // Setup event listeners
-    document.getElementById('lowesLogo').addEventListener('click', () => {
-        MapManager.loadLocations();
-    });
+    const lowesLogo = document.getElementById('lowesLogo');
+    const spartanLogo = document.getElementById('spartanLogo');
+    const closePOI = document.getElementById('closePOI');
+    const configForm = document.getElementById('configForm');
+    const skipConfig = document.getElementById('skipConfig');
     
-    document.getElementById('spartanLogo').addEventListener('click', () => {
-        if (!isScanning) {
-            BatchScanEngine.startBatchScan();
-        }
-    });
+    if (lowesLogo) {
+        lowesLogo.addEventListener('click', () => {
+            MapManager.loadLocations();
+        });
+    }
     
-    document.getElementById('closePOI').addEventListener('click', () => {
-        POIPanelManager.hidePOI();
-    });
+    if (spartanLogo) {
+        spartanLogo.addEventListener('click', () => {
+            if (!isScanning) {
+                BatchScanEngine.startBatchScan();
+            }
+        });
+    }
     
-    document.getElementById('configForm').addEventListener('submit', (e) => {
-        e.preventDefault();
-        saveConfig();
-    });
+    if (closePOI) {
+        closePOI.addEventListener('click', () => {
+            POIPanelManager.hidePOI();
+        });
+    }
     
-    document.getElementById('skipConfig').addEventListener('click', () => {
-        hideConfigModal();
-    });
+    if (configForm) {
+        configForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            saveConfig();
+        });
+    } else {
+        console.error('configForm element not found!');
+    }
+    
+    if (skipConfig) {
+        skipConfig.addEventListener('click', () => {
+            hideConfigModal();
+        });
+    } else {
+        console.error('skipConfig button not found!');
+    }
 });
 
 // Configuration Management
 function showConfigModal() {
-    document.getElementById('configModal').classList.remove('hidden');
+    const modal = document.getElementById('configModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        console.log('Config modal shown');
+    } else {
+        console.error('configModal element not found!');
+    }
 }
 
 function hideConfigModal() {
-    document.getElementById('configModal').classList.add('hidden');
+    const modal = document.getElementById('configModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        console.log('Config modal hidden');
+    } else {
+        console.error('configModal element not found!');
+    }
 }
 
 function saveConfig() {
-    const apiBaseUrl = document.getElementById('apiBaseUrl').value.trim();
-    const apiKey = document.getElementById('apiKey').value.trim();
+    const apiBaseUrlEl = document.getElementById('apiBaseUrl');
+    const apiKeyEl = document.getElementById('apiKey');
+    
+    if (!apiBaseUrlEl || !apiKeyEl) {
+        console.error('API config input elements not found!');
+        alert('Error: Configuration form elements not found. Please refresh the page.');
+        return;
+    }
+    
+    const apiBaseUrl = apiBaseUrlEl.value.trim();
+    const apiKey = apiKeyEl.value.trim();
     
     if (apiBaseUrl && apiKey) {
         CONFIG.apiBaseUrl = apiBaseUrl;
         CONFIG.apiKey = apiKey;
         localStorage.setItem('apiBaseUrl', apiBaseUrl);
         localStorage.setItem('apiKey', apiKey);
+        console.log('Configuration saved');
         hideConfigModal();
     } else {
         alert('Please enter both API Base URL and API Key');
@@ -136,6 +179,34 @@ const MapManager = {
             // Add heatmap
             this.updateHeatmap();
             
+            // Zoom to California/western United States
+            const californiaLocations = locations.filter(loc => loc.state === 'CA' || loc.state === 'California');
+            if (californiaLocations.length > 0) {
+                // Calculate bounds for California locations
+                const lats = californiaLocations.map(loc => loc.lat);
+                const lons = californiaLocations.map(loc => loc.lon);
+                const minLat = Math.min(...lats);
+                const maxLat = Math.max(...lats);
+                const minLon = Math.min(...lons);
+                const maxLon = Math.max(...lons);
+                
+                // Expand bounds slightly for better view
+                const latPadding = (maxLat - minLat) * 0.2;
+                const lonPadding = (maxLon - minLon) * 0.2;
+                
+                const bounds = [
+                    [minLat - latPadding, minLon - lonPadding],
+                    [maxLat + latPadding, maxLon + lonPadding]
+                ];
+                
+                map.fitBounds(bounds, { padding: [50, 50] });
+                console.log(`Zoomed to California region with ${californiaLocations.length} locations`);
+            } else {
+                // Fallback: zoom to western US if no CA locations found
+                map.setView([36.7783, -119.4179], 6); // Center on California
+                console.log('No California locations found, zooming to default California view');
+            }
+            
             // Update UI
             document.getElementById('locationCount').textContent = locations.length;
             updateStatus('Ready', 'ready');
@@ -170,53 +241,86 @@ const MapManager = {
     },
     
     pulsePin(locationId, duration = CONFIG.pulseDuration) {
-        const marker = markers[locationId];
-        if (!marker) {
-            console.warn(`Marker not found for location ID: ${locationId}`);
+        // Get the original location data to ensure correct positioning
+        const location = locations.find(loc => loc.id === locationId);
+        if (!location) {
+            console.warn(`Location data not found for ID: ${locationId}`);
             return;
         }
         
-        console.log(`Pulsating pin for location ID: ${locationId}`);
+        console.log(`Pulsating pin for location ID: ${locationId} at ${location.lat}, ${location.lon}`);
         
-        // Change pin to red with pulse animation (25% larger than normal)
-        const icon = L.divIcon({
+        // Remove any existing pulsating marker for this location
+        if (pulsatingMarkers[locationId]) {
+            map.removeLayer(pulsatingMarkers[locationId]);
+            delete pulsatingMarkers[locationId];
+        }
+        
+        // Create a NEW red pulsating marker at the exact location coordinates
+        // This avoids any issues with modifying existing markers
+        const redIcon = L.divIcon({
             className: 'custom-marker pulse-pin',
-            html: `<div class="pulse-pin-inner" style="
-                width: 20px;
-                height: 20px;
+            html: `<div class="pulse-pin-red" style="
+                width: 12px;
+                height: 12px;
                 background: #FF4444;
                 border: 2px solid white;
                 border-radius: 50%;
                 box-shadow: 0 0 10px rgba(255,68,68,0.8);
-                animation: pulsePin 1s infinite;
+                animation: pulsePinScale 1s infinite;
+                margin: 0;
+                padding: 0;
+                display: block;
+                box-sizing: border-box;
+                transform-origin: center center;
             "></div>`,
-            iconSize: [20, 20],
-            iconAnchor: [10, 10],
+            iconSize: [12, 12],
+            iconAnchor: [6, 6], // Center of icon
+            popupAnchor: [0, -6],
         });
         
-        marker.setIcon(icon);
+        // Create new marker at exact location coordinates
+        const pulsatingMarker = L.marker([location.lat, location.lon], { 
+            icon: redIcon,
+            zIndexOffset: 1000 // Ensure it appears on top
+        }).addTo(map);
+        
+        // Store reference
+        pulsatingMarkers[locationId] = pulsatingMarker;
+        
+        // Verify position
+        const markerPos = pulsatingMarker.getLatLng();
+        console.log(`Pulsating marker created at: ${markerPos.lat}, ${markerPos.lng}, Expected: ${location.lat}, ${location.lon}`);
         
         // Intensify heatmap
         this.updateHeatmap(true);
         
-        // Revert after duration
+        // Remove pulsating marker after duration
         setTimeout(() => {
-            const greenIcon = L.divIcon({
-                className: 'custom-marker',
-                html: `<div style="
-                    width: 12px;
-                    height: 12px;
-                    background: #00FF88;
-                    border: 2px solid white;
-                    border-radius: 50%;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-                "></div>`,
-                iconSize: [12, 12],
-                iconAnchor: [6, 6],
-            });
-            marker.setIcon(greenIcon);
-            console.log(`Reverted pin to green for location ID: ${locationId}`);
+            if (pulsatingMarkers[locationId]) {
+                map.removeLayer(pulsatingMarkers[locationId]);
+                delete pulsatingMarkers[locationId];
+                console.log(`Removed pulsating pin for location ID: ${locationId}`);
+            }
         }, duration);
+    },
+    
+    panToLocation(lat, lon, locationId = null) {
+        // Pan and zoom to the alert location at regional level (zoom 8)
+        map.flyTo([lat, lon], 8, {
+            duration: 1.0,
+            easeLinearity: 0.25
+        });
+        
+        // If we have a location ID and the pin is pulsating, ensure it's visible
+        if (locationId && markers[locationId]) {
+            // Open popup to highlight the location
+            setTimeout(() => {
+                markers[locationId].openPopup();
+            }, 1000);
+        }
+        
+        console.log(`Map panned to location: ${lat}, ${lon} (${locationId || 'no ID'}) at regional level`);
     },
     
     updateHeatmap(intensify = false) {
@@ -274,8 +378,29 @@ const BatchScanEngine = {
     },
     
     getRandomLocations(count) {
-        const shuffled = [...locations].sort(() => 0.5 - Math.random());
-        return shuffled.slice(0, count);
+        // For high-threat scans, use California locations only
+        const californiaLocations = locations.filter(loc => loc.state === 'CA' || loc.state === 'California');
+        
+        if (californiaLocations.length > 0) {
+            // Use California locations for real scans (which will be high-threat)
+            const shuffled = [...californiaLocations].sort(() => 0.5 - Math.random());
+            const selected = shuffled.slice(0, Math.min(count, californiaLocations.length));
+            
+            // If we need more locations than available in CA, fill with random
+            if (selected.length < count) {
+                const remaining = count - selected.length;
+                const otherLocations = locations.filter(loc => loc.state !== 'CA' && loc.state !== 'California');
+                const shuffledOthers = [...otherLocations].sort(() => 0.5 - Math.random());
+                selected.push(...shuffledOthers.slice(0, remaining));
+            }
+            
+            console.log(`Selected ${selected.length} locations (${selected.filter(l => l.state === 'CA' || l.state === 'California').length} from California) for real scans`);
+            return selected;
+        } else {
+            // Fallback to random if no California locations
+            const shuffled = [...locations].sort(() => 0.5 - Math.random());
+            return shuffled.slice(0, count);
+        }
     },
     
     simulateMockScans(count) {
@@ -596,11 +721,26 @@ const BatchScanEngine = {
                     
                     // Extract mugshot URL from top match
                     const mugShotUrl = topMatchFromData?.subject?.photo || scanData.mugShotUrl || null;
-                    console.log('🖼️ Mugshot extraction:', {
+                    
+                    // Get original scan image (the image that was uploaded) from test image map
+                    const storedImageIndexForImage = window.scanImageMap?.[scanId] ?? testImageIndex;
+                    let originalScanImageDataUrl = null;
+                    if (storedImageIndexForImage !== null && storedImageIndexForImage < testImagesBase64.length) {
+                        const imagePath = window.ImageLoader?.TEST_IMAGES[storedImageIndexForImage] || '';
+                        if (imagePath.endsWith('.jpeg') || imagePath.endsWith('.jpg')) {
+                            originalScanImageDataUrl = `data:image/jpeg;base64,${testImagesBase64[storedImageIndexForImage]}`;
+                        } else if (imagePath.endsWith('.webp')) {
+                            originalScanImageDataUrl = `data:image/webp;base64,${testImagesBase64[storedImageIndexForImage]}`;
+                        }
+                    }
+                    
+                    console.log('🖼️ Image extraction:', {
                         hasTopMatch: !!topMatchFromData,
                         topMatchPhoto: topMatchFromData?.subject?.photo ? topMatchFromData.subject.photo.substring(0, 50) + '...' : 'none',
                         scanDataMugShotUrl: scanData.mugShotUrl ? scanData.mugShotUrl.substring(0, 50) + '...' : 'none',
-                        finalMugShotUrl: mugShotUrl ? mugShotUrl.substring(0, 50) + '...' : 'none'
+                        finalMugShotUrl: mugShotUrl ? mugShotUrl.substring(0, 50) + '...' : 'none',
+                        storedImageIndex: storedImageIndexForImage,
+                        hasOriginalScan: !!originalScanImageDataUrl
                     });
                     
                     const scanResult = {
@@ -614,6 +754,8 @@ const BatchScanEngine = {
                         subjectName: topMatchFromData?.subject?.name || scanData.subjectName,
                         subjectType: topMatchFromData?.subject?.type || scanData.subjectType,
                         mugShotUrl: mugShotUrl,
+                        // Preserve original scan image (the uploaded image)
+                        testImageDataUrl: originalScanImageDataUrl || scanData.testImageDataUrl,
                         // Use actual matches from DynamoDB if available, preserve full structure
                         matches: (scanData.matches && Array.isArray(scanData.matches) && scanData.matches.length > 0)
                             ? scanData.matches.map(match => ({
@@ -781,13 +923,16 @@ const BatchScanEngine = {
             }
         }
         
-        // Queue alert
+        // Queue alert with location data for map panning
         const alert = {
             id: `alert-${Date.now()}-${Math.random()}`,
             scanId: scanResult.scanId || scanResult.id,
             timestamp: new Date().toISOString(),
             storeName: location.name,
             location: `${location.city}, ${location.state}`,
+            locationId: location.id,
+            locationLat: location.lat,
+            locationLon: location.lon,
             topScore: scanResult.topScore || (scanResult.matches && scanResult.matches[0]?.score) || 0,
             scanData: scanResult
         };
@@ -881,7 +1026,15 @@ const BatchScanEngine = {
                                 type: 'FELONY',
                                 date: '2024-01-15',
                                 status: 'ACTIVE'
-                            }]
+                            }],
+                            metadata: {
+                                location: {
+                                    lat: location.lat,
+                                    lon: location.lon
+                                },
+                                cameraID: cameraName,
+                                timestamp: new Date().toISOString()
+                            }
                         };
                         
                         this.handleHighThreat(mockScanResult, location);
@@ -1005,6 +1158,16 @@ const AlertManager = {
     },
     
     selectAlert(alert) {
+        // Pan map to alert location if coordinates are available
+        if (alert.locationLat && alert.locationLon) {
+            MapManager.panToLocation(alert.locationLat, alert.locationLon, alert.locationId);
+        } else if (alert.scanData?.metadata?.location) {
+            // Fallback to metadata location
+            const loc = alert.scanData.metadata.location;
+            MapManager.panToLocation(loc.lat, loc.lon, alert.locationId);
+        }
+        
+        // Show POI panel
         POIPanelManager.showPOI(alert.scanData || alert);
     },
     
@@ -1106,6 +1269,35 @@ const POIPanelManager = {
             }
         }
         
+        // Extract original scan image (the image that was uploaded/submitted for scanning)
+        let originalScanImage = '';
+        // Priority 1: Test image data URL (for demo/test images - this is what was uploaded)
+        if (scanData.testImageDataUrl) {
+            originalScanImage = scanData.testImageDataUrl;
+        }
+        // Priority 2: Image from scan result metadata
+        else if (scanData.image) {
+            const img = scanData.image;
+            if (img.startsWith('http://') || img.startsWith('https://') || img.startsWith('data:image/')) {
+                originalScanImage = img;
+            } else if (img.length > 100) {
+                originalScanImage = img.startsWith('data:') ? img : `data:image/jpeg;base64,${img}`;
+            } else {
+                originalScanImage = img;
+            }
+        }
+        // Priority 3: Metadata image URL
+        else if (scanData.metadata?.imageUrl) {
+            originalScanImage = scanData.metadata.imageUrl;
+        }
+        
+        console.log('📷 Image extraction:', {
+            hasMugshot: !!subjectPhoto,
+            hasOriginalScan: !!originalScanImage,
+            mugshotSource: subjectPhoto ? (subjectPhoto.substring(0, 50) + '...') : 'none',
+            originalScanSource: originalScanImage ? (originalScanImage.substring(0, 50) + '...') : 'none'
+        });
+        
         console.log('📸 POI Data Extraction:', { 
             scanId: scanData.scanId || scanData.id,
             topScore,
@@ -1131,7 +1323,16 @@ const POIPanelManager = {
         
         content.innerHTML = `
             <div class="poi-section">
-                ${subjectPhoto ? `<img src="${subjectPhoto}" alt="Subject Mugshot" class="poi-photo" onerror="console.error('Failed to load POI image:', this.src.substring(0, 100)); this.onerror=null; this.src=''; this.parentElement.innerHTML='<div class=\\'poi-photo-placeholder\\'>Image Failed to Load</div>';" onload="console.log('POI image loaded successfully:', this.src.substring(0, 100));">` : '<div class="poi-photo-placeholder">No Image Available</div>'}
+                <div class="poi-images-container">
+                    <div class="poi-image-wrapper">
+                        <div class="poi-image-label">Original Scan</div>
+                        ${originalScanImage ? `<img src="${originalScanImage}" alt="Original Scan Image" class="poi-photo poi-original" onerror="console.error('Failed to load original scan:', this.src.substring(0, 100)); this.onerror=null; this.src=''; this.parentElement.innerHTML='<div class=\\'poi-photo-placeholder\\'>Original Scan Not Available</div>';" onload="console.log('Original scan image loaded successfully');">` : '<div class="poi-photo-placeholder">Original Scan Not Available</div>'}
+                    </div>
+                    <div class="poi-image-wrapper">
+                        <div class="poi-image-label">Mugshot</div>
+                        ${subjectPhoto ? `<img src="${subjectPhoto}" alt="Subject Mugshot" class="poi-photo poi-mugshot" onerror="console.error('Failed to load mugshot:', this.src.substring(0, 100)); this.onerror=null; this.src=''; this.parentElement.innerHTML='<div class=\\'poi-photo-placeholder\\'>Mugshot Not Available</div>';" onload="console.log('Mugshot loaded successfully');">` : '<div class="poi-photo-placeholder">Mugshot Not Available</div>'}
+                    </div>
+                </div>
                 <div class="poi-score">${topScore.toFixed(2)}%</div>
                 <div class="poi-info-item">
                     <div class="poi-info-label">Name</div>
