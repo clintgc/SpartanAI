@@ -218,6 +218,19 @@ const MapManager = {
     },
     
     addPin(location, color = 'green') {
+        // Normalize location data - handle both storeId/id and storeName/name
+        const locationId = location.storeId || location.id;
+        const locationName = location.storeName || location.name;
+        const address = location.address || `${location.city}, ${location.state}`;
+        
+        // Ensure coordinates are numbers
+        const lat = parseFloat(location.lat);
+        const lon = parseFloat(location.lon);
+        if (isNaN(lat) || isNaN(lon)) {
+            console.error(`Invalid coordinates for ${locationId}: ${location.lat}, ${location.lon}`);
+            return;
+        }
+        
         const iconColor = color === 'red' ? '#FF4444' : '#00FF88';
         const icon = L.divIcon({
             className: 'custom-marker',
@@ -233,22 +246,36 @@ const MapManager = {
             iconAnchor: [6, 6],
         });
         
-        const marker = L.marker([location.lat, location.lon], { icon })
+        const marker = L.marker([lat, lon], { icon })
             .addTo(map)
-            .bindPopup(`<strong>${location.name}</strong><br>${location.address}`);
+            .bindPopup(`<strong>${locationName}</strong><br>${address}`);
         
-        markers[location.id] = marker;
+        markers[locationId] = marker;
     },
     
     pulsePin(locationId, duration = CONFIG.pulseDuration) {
-        // Get the original location data to ensure correct positioning
-        const location = locations.find(loc => loc.id === locationId);
+        // Find location - handle both storeId and id fields
+        const location = locations.find(loc => (loc.storeId || loc.id) === locationId);
         if (!location) {
-            console.warn(`Location data not found for ID: ${locationId}`);
+            console.error(`Location data not found for ID: ${locationId}`);
             return;
         }
         
-        console.log(`Pulsating pin for location ID: ${locationId} at ${location.lat}, ${location.lon}`);
+        // Parse and validate coordinates (Grok's improvement)
+        const lat = parseFloat(location.lat);
+        const lon = parseFloat(location.lon);
+        if (isNaN(lat) || isNaN(lon)) {
+            console.error(`Invalid coordinates for ${locationId}: ${location.lat}, ${location.lon}`);
+            return;
+        }
+        
+        // Validate coordinate bounds
+        if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+            console.error(`Coordinates out of bounds for ${locationId}: ${lat}, ${lon}`);
+            return;
+        }
+        
+        console.log(`Pulsating pin for location ID: ${locationId} at ${lat}, ${lon}`);
         
         // Remove any existing pulsating marker for this location
         if (pulsatingMarkers[locationId]) {
@@ -256,46 +283,30 @@ const MapManager = {
             delete pulsatingMarkers[locationId];
         }
         
-        // Create a NEW red pulsating marker at the exact location coordinates
-        // This avoids any issues with modifying existing markers
+        // Create red pulsating divIcon (Grok's simplified approach: 20px base, center anchor)
         const redIcon = L.divIcon({
-            className: 'custom-marker pulse-pin',
-            html: `<div class="pulse-pin-red" style="
-                width: 12px;
-                height: 12px;
-                background: #FF4444;
-                border: 2px solid white;
-                border-radius: 50%;
-                box-shadow: 0 0 10px rgba(255,68,68,0.8);
-                animation: pulsePinScale 1s infinite;
-                margin: 0;
-                padding: 0;
-                display: block;
-                box-sizing: border-box;
-                transform-origin: center center;
-            "></div>`,
-            iconSize: [12, 12],
-            iconAnchor: [6, 6], // Center of icon
-            popupAnchor: [0, -6],
+            className: 'pulse-pin', // Base class for animation
+            html: `<div class="pulse-pin-red"></div>`,
+            iconSize: [20, 20],   // Fixed size for reliable anchoring (Grok's improvement)
+            iconAnchor: [10, 10], // Exact center (half of iconSize) - foolproof for circles
+            popupAnchor: [0, -10] // Above for any popups
         });
         
-        // Create new marker at exact location coordinates
-        const pulsatingMarker = L.marker([location.lat, location.lon], { 
+        // Create new marker at exact coords, high z-index
+        const pulsatingMarker = L.marker([lat, lon], {
             icon: redIcon,
-            zIndexOffset: 1000 // Ensure it appears on top
+            zIndexOffset: 1000  // On top of green pins
         }).addTo(map);
         
-        // Store reference
+        // Store and verify position
         pulsatingMarkers[locationId] = pulsatingMarker;
-        
-        // Verify position
         const markerPos = pulsatingMarker.getLatLng();
-        console.log(`Pulsating marker created at: ${markerPos.lat}, ${markerPos.lng}, Expected: ${location.lat}, ${location.lon}`);
+        console.log(`Pulsating marker created at: ${markerPos.lat}, ${markerPos.lng} (Expected: ${lat}, ${lon})`);
         
         // Intensify heatmap
         this.updateHeatmap(true);
         
-        // Remove pulsating marker after duration
+        // Auto-remove after duration
         setTimeout(() => {
             if (pulsatingMarkers[locationId]) {
                 map.removeLayer(pulsatingMarkers[locationId]);
@@ -418,7 +429,7 @@ const BatchScanEngine = {
                 const logEntry = {
                     scanId: `mock-${Date.now()}-${i}`,
                     location: `${location.city}, ${location.state}`,
-                    storeName: location.name,
+                    storeName: location.storeName || location.name,
                     cameraName: cameraName,
                     timestamp: new Date().toISOString(),
                     status: 'COMPLETED',
@@ -476,7 +487,7 @@ const BatchScanEngine = {
                     const logEntry = {
                         scanId: scanResponse.scanId,
                         location: `${location.city}, ${location.state}`,
-                        storeName: location.name,
+                        storeName: location.storeName || location.name,
                         cameraName: cameraName,
                         timestamp: new Date().toISOString(),
                         status: scanResponse.status || 'PENDING',
@@ -526,7 +537,7 @@ const BatchScanEngine = {
                 const logEntry = {
                     scanId: `error-${Date.now()}-${i}`,
                     location: `${location.city}, ${location.state}`,
-                    storeName: location.name,
+                    storeName: location.storeName || location.name,
                     cameraName: cameraName,
                     timestamp: new Date().toISOString(),
                     status: 'ERROR',
@@ -868,7 +879,7 @@ const BatchScanEngine = {
         console.log('🚨 Handling high-threat alert:', { 
             scanId: scanResult.scanId || scanResult.id,
             topScore: scanResult.topScore,
-            location: location.name,
+            location: location.storeName || location.name,
             locationState: location.state,
             hasMatches: !!scanResult.matches,
             hasCrimes: !!scanResult.crimes,
@@ -878,10 +889,13 @@ const BatchScanEngine = {
         
         // Pulse pin red - ONLY for California locations (for demo purposes)
         if (location.state === 'CA' || location.state === 'California') {
-            console.log(`Pulsating pin for California location: ${location.name}`);
-            MapManager.pulsePin(location.id, CONFIG.pulseDuration);
+            const locationName = location.storeName || location.name;
+            const locationId = location.storeId || location.id;
+            console.log(`Pulsating pin for California location: ${locationName}`);
+            MapManager.pulsePin(locationId, CONFIG.pulseDuration);
         } else {
-            console.log(`Skipping pin pulsation for non-California location: ${location.name} (${location.state})`);
+            const locationName = location.storeName || location.name;
+            console.log(`Skipping pin pulsation for non-California location: ${locationName} (${location.state})`);
         }
         
         // If we have a test image index, add it to scanData for POI display
@@ -928,9 +942,9 @@ const BatchScanEngine = {
             id: `alert-${Date.now()}-${Math.random()}`,
             scanId: scanResult.scanId || scanResult.id,
             timestamp: new Date().toISOString(),
-            storeName: location.name,
+            storeName: location.storeName || location.name,
             location: `${location.city}, ${location.state}`,
-            locationId: location.id,
+            locationId: location.storeId || location.id,
             locationLat: location.lat,
             locationLon: location.lon,
             topScore: scanResult.topScore || (scanResult.matches && scanResult.matches[0]?.score) || 0,
@@ -967,7 +981,7 @@ const BatchScanEngine = {
                 const logEntry = {
                     scanId: scanId,
                     location: `${location.city}, ${location.state}`,
-                    storeName: location.name,
+                    storeName: location.storeName || location.name,
                     cameraName: cameraName,
                     timestamp: new Date().toISOString(),
                     status: 'PENDING',
