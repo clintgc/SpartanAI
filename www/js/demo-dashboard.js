@@ -7,7 +7,7 @@ const CONFIG = {
     accountId: '550e8400-e29b-41d4-a716-446655440000', // Valid UUID format required by API
     highThreatThreshold: 89,
     pollingInterval: 5000, // 5 seconds
-    realScanInterval: 30000, // 30 seconds between real scans
+    realScanInterval: 15000, // 15 seconds between real scans
     mockScanCount: 990,
     realScanCount: 10,
     pulseDuration: 30000, // 30 seconds
