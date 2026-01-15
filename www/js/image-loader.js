@@ -53,11 +53,45 @@ async function imageToBase64(imagePath) {
  */
 async function loadTestImages() {
     const base64Images = [];
+    const loadedImages = [];
+    const failedImages = [];
     
-    for (const imagePath of TEST_IMAGES) {
-        const base64 = await imageToBase64(imagePath);
-        base64Images.push(base64);
+    console.log(`🖼️  Loading ${TEST_IMAGES.length} test images...`);
+    
+    for (let i = 0; i < TEST_IMAGES.length; i++) {
+        const imagePath = TEST_IMAGES[i];
+        const imageName = imagePath.split('/').pop();
+        
+        try {
+            const base64 = await imageToBase64(imagePath);
+            // Check if we got a placeholder (short base64 means it failed)
+            if (base64 && base64.length > 200) {
+                base64Images.push(base64);
+                loadedImages.push(imageName);
+                console.log(`  ✅ Loaded ${i + 1}/${TEST_IMAGES.length}: ${imageName}`);
+            } else {
+                failedImages.push(imageName);
+                base64Images.push(base64); // Still add placeholder to maintain array length
+                console.warn(`  ⚠️  Failed to load ${i + 1}/${TEST_IMAGES.length}: ${imageName} (using placeholder)`);
+            }
+        } catch (error) {
+            failedImages.push(imageName);
+            console.error(`  ❌ Error loading ${i + 1}/${TEST_IMAGES.length}: ${imageName}`, error);
+            // Add placeholder to maintain array length
+            base64Images.push('iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAACXBIWXMAAAsTAAALEwEAmpwYAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAjSURBVHgB7dExAQAAAMKg9U9tB2+gAAAAAAAAAAAAAAAAAAAAAAAAAAAA4A8CqQABAc0XJwAAAABJRU5ErkJggg==');
+        }
     }
+    
+    console.log(`\n📊 Image Loading Summary:`);
+    console.log(`  ✅ Successfully loaded: ${loadedImages.length}/${TEST_IMAGES.length}`);
+    if (loadedImages.length > 0) {
+        console.log(`  Images: ${loadedImages.join(', ')}`);
+    }
+    if (failedImages.length > 0) {
+        console.warn(`  ⚠️  Failed to load: ${failedImages.length} image(s)`);
+        console.warn(`  Failed: ${failedImages.join(', ')}`);
+    }
+    console.log('');
     
     return base64Images;
 }
