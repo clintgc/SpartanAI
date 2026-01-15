@@ -454,13 +454,14 @@ const BatchScanEngine = {
             // Generate camera name
             const cameraName = `Parking-Lot-Cam-${String(Math.floor(Math.random() * 10) + 1).padStart(2, '0')}`;
             
-            // Use test images for available scans, placeholder for remaining
+            // Randomly select from available test images
             let imageBase64;
             let testImageIndex = null;
-            if (i < testImagesBase64.length && testImagesBase64[i]) {
-                imageBase64 = testImagesBase64[i];
-                testImageIndex = i; // Store which test image we're using
-                console.log(`Using test image ${i + 1} for scan ${i + 1}`);
+            if (testImagesBase64.length > 0) {
+                // Randomly select a test image
+                testImageIndex = Math.floor(Math.random() * testImagesBase64.length);
+                imageBase64 = testImagesBase64[testImageIndex];
+                console.log(`Using random test image ${testImageIndex + 1} (${testImagesBase64.length} available) for scan ${i + 1}`);
             } else {
                 // Placeholder for remaining scans (will be replaced with real images later)
                 // Must be > 100 chars for validation - using a 10x10 pixel PNG
