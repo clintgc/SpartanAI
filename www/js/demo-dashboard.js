@@ -454,7 +454,7 @@ const BatchScanEngine = {
             // Generate camera name
             const cameraName = `Parking-Lot-Cam-${String(Math.floor(Math.random() * 10) + 1).padStart(2, '0')}`;
             
-            // Use test images for first 4 scans, placeholder for remaining 6
+            // Use test images for available scans, placeholder for remaining
             let imageBase64;
             let testImageIndex = null;
             if (i < testImagesBase64.length && testImagesBase64[i]) {
@@ -957,12 +957,12 @@ const BatchScanEngine = {
     
     simulateRealScans(scanLocations) {
         // Simulate real scans with high-threat results
-        // Use test images for first 4 scans (all should be high-threat)
+        // Use test images for available scans (all should be high-threat)
         scanLocations.forEach((location, i) => {
             setTimeout(() => {
                 const cameraName = `Parking-Lot-Cam-${String(Math.floor(Math.random() * 10) + 1).padStart(2, '0')}`;
-                // First 4 scans use test images and should all be high-threat (>89%)
-                const isHighThreat = i < 4; // First 4 are high-threat (using test images)
+                // Scans using test images should all be high-threat (>89%)
+                const isHighThreat = i < testImagesBase64.length; // Test image scans are high-threat
                 const topScore = isHighThreat ? Math.floor(Math.random() * 10) + 90 : Math.floor(Math.random() * 20) + 70;
                 
                 const scanId = `sim-${Date.now()}-${i}`;
@@ -997,12 +997,31 @@ const BatchScanEngine = {
                     
                     if (isHighThreat) {
                         // Generate names based on test image names
-                        const imageNames = ['Anthony (FL)', 'Armed Robbery Suspect (MI)', 'Assault Suspect (NC)', 'Burglary Suspect (OR)'];
+                        const imageNames = [
+                            'Anthony (FL)', 
+                            'Armed Robbery Suspect (MI)', 
+                            'Assault Suspect (NC)', 
+                            'Burglary Suspect (OR)',
+                            'Amir Faten Mekky',
+                            'Assault Suspect (FL)',
+                            'Assault & Robbery Suspect (AL)',
+                            'Threat Subject #1',
+                            'Violent Offender (NV)',
+                            'Wanted Subject (CA)',
+                            'Wanted Subject (FL)'
+                        ];
                         const crimeTypes = [
                             { type: 'FELONY', description: 'Theft, Fraud', date: '2024-01-15' },
                             { type: 'FELONY', description: 'Armed Robbery', date: '2023-12-20' },
                             { type: 'FELONY', description: 'Assault, Battery', date: '2024-02-10' },
-                            { type: 'FELONY', description: 'Burglary, Theft', date: '2023-11-18' }
+                            { type: 'FELONY', description: 'Burglary, Theft', date: '2023-11-18' },
+                            { type: 'FELONY', description: 'Multiple Charges', date: '2023-10-05' },
+                            { type: 'FELONY', description: 'Assault, Battery', date: '2024-01-22' },
+                            { type: 'FELONY', description: 'Assault, Robbery', date: '2023-12-15' },
+                            { type: 'FELONY', description: 'Threat, Menacing', date: '2024-02-01' },
+                            { type: 'FELONY', description: 'Violent Crime', date: '2023-11-30' },
+                            { type: 'FELONY', description: 'Wanted - Multiple Charges', date: '2024-01-10' },
+                            { type: 'FELONY', description: 'Wanted - Felony', date: '2023-12-28' }
                         ];
                         
                         const mockScanResult = {

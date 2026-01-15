@@ -4,7 +4,14 @@ const TEST_IMAGES = [
     'img/test-images/Anthony-FL.jpeg',
     'img/test-images/ArmedRobbery-MI.webp',
     'img/test-images/ASSAULT-NC2.webp',
-    'img/test-images/Burglary-OR.webp'
+    'img/test-images/Burglary-OR.webp',
+    'img/test-images/AmirFatenMekky.bmp',
+    'img/test-images/Assault-FL.webp',
+    'img/test-images/Assault-Robbery-AL.png',
+    'img/test-images/ThreatSubject1.webp',
+    'img/test-images/Violent-NV.webp',
+    'img/test-images/WANTED-CA.webp',
+    'img/test-images/Wanted_FL3.webp'
 ];
 
 // Cache for loaded images
