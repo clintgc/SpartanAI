@@ -9,7 +9,7 @@ const CONFIG = {
     pollingInterval: 5000, // 5 seconds
     realScanInterval: 15000, // 15 seconds between real scans
     mockScanCount: 990,
-    realScanCount: 10,
+    realScanCount: 11, // Test all 11 images
     pulseDuration: 30000, // 30 seconds
 };
 
@@ -24,6 +24,7 @@ let alerts = [];
 let activePolling = new Map();
 let isScanning = false;
 let testImagesBase64 = []; // Cache for test images
+let highThreatImageUsage = {}; // Track which images appear in High-Threat alerts: { imageIndex: count }
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', async () => {
@@ -36,11 +37,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     MapManager.initMap();
     ScanLogManager.init(); // Initialize scan log scroll tracking
     
-    // Pre-load test images
+    // Pre-load test images (don't log details here - image-loader.js already logs them)
     try {
         if (window.ImageLoader) {
             testImagesBase64 = await window.ImageLoader.loadTestImages();
-            console.log(`Loaded ${testImagesBase64.length} test images`);
+            // Just log a summary - detailed logging is done in image-loader.js
+            if (testImagesBase64.length === 11) {
+                const successfullyLoaded = testImagesBase64.filter(img => img && img.length > 200).length;
+                console.log(`✅ Pre-loaded ${testImagesBase64.length} test images (${successfullyLoaded} successfully loaded)`);
+            } else {
+                console.warn(`⚠️  Expected 11 images but only loaded ${testImagesBase64.length}`);
+            }
         }
     } catch (error) {
         console.error('Error loading test images:', error);
@@ -172,39 +179,62 @@ const MapManager = {
             
             console.log(`Loaded ${locations.length} locations`);
             
-            // Add pins to map
-            locations.forEach(location => {
-                this.addPin(location, 'green');
-            });
+            // Add pins to map in batches to prevent UI blocking
+            const batchSize = 100;
+            for (let i = 0; i < locations.length; i += batchSize) {
+                const batch = locations.slice(i, i + batchSize);
+                batch.forEach(location => {
+                    this.addPin(location, 'green');
+                });
+                // Yield to browser to keep UI responsive
+                if (i + batchSize < locations.length) {
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
+            }
             
             // Add heatmap
             this.updateHeatmap();
             
-            // Zoom to California/western United States
-            const californiaLocations = locations.filter(loc => loc.state === 'CA' || loc.state === 'California');
+            // Zoom to California only
+            const californiaLocations = locations.filter(loc => {
+                const state = (loc.state || '').toString().toUpperCase();
+                return state === 'CA' || state === 'CALIFORNIA';
+            });
+            
             if (californiaLocations.length > 0) {
-                // Calculate bounds for California locations
-                const lats = californiaLocations.map(loc => loc.lat);
-                const lons = californiaLocations.map(loc => loc.lon);
-                const minLat = Math.min(...lats);
-                const maxLat = Math.max(...lats);
-                const minLon = Math.min(...lons);
-                const maxLon = Math.max(...lons);
+                // Calculate bounds for California locations only
+                const lats = californiaLocations.map(loc => parseFloat(loc.lat)).filter(lat => !isNaN(lat));
+                const lons = californiaLocations.map(loc => parseFloat(loc.lon)).filter(lon => !isNaN(lon));
                 
-                // Expand bounds slightly for better view
-                const latPadding = (maxLat - minLat) * 0.2;
-                const lonPadding = (maxLon - minLon) * 0.2;
-                
-                const bounds = [
-                    [minLat - latPadding, minLon - lonPadding],
-                    [maxLat + latPadding, maxLon + lonPadding]
-                ];
-                
-                map.fitBounds(bounds, { padding: [50, 50] });
-                console.log(`Zoomed to California region with ${californiaLocations.length} locations`);
+                if (lats.length > 0 && lons.length > 0) {
+                    const minLat = Math.min(...lats);
+                    const maxLat = Math.max(...lats);
+                    const minLon = Math.min(...lons);
+                    const maxLon = Math.max(...lons);
+                    
+                    // Use minimal padding (5%) to keep zoom tight to California
+                    const latPadding = (maxLat - minLat) * 0.05;
+                    const lonPadding = (maxLon - minLon) * 0.05;
+                    
+                    const bounds = [
+                        [minLat - latPadding, minLon - lonPadding],
+                        [maxLat + latPadding, maxLon + lonPadding]
+                    ];
+                    
+                    // Use fitBounds with minimal padding to zoom tightly to California
+                    map.fitBounds(bounds, { 
+                        padding: [20, 20],
+                        maxZoom: 7  // Limit max zoom to prevent over-zooming
+                    });
+                    console.log(`Zoomed to California region with ${californiaLocations.length} locations`);
+                } else {
+                    // Fallback: zoom to California center if bounds calculation fails
+                    map.setView([36.7783, -119.4179], 6);
+                    console.log('Could not calculate California bounds, using default California view');
+                }
             } else {
-                // Fallback: zoom to western US if no CA locations found
-                map.setView([36.7783, -119.4179], 6); // Center on California
+                // Fallback: zoom to California center if no CA locations found
+                map.setView([36.7783, -119.4179], 6);
                 console.log('No California locations found, zooming to default California view');
             }
             
@@ -369,11 +399,32 @@ const BatchScanEngine = {
             return;
         }
         
+        // Only reload images if we don't have 11 already (to avoid delay)
+        // Note: image-loader.js now caches images, so reloading is fast
+        if (testImagesBase64.length !== 11) {
+            console.log('🔄 Reloading test images (only have ' + testImagesBase64.length + ')...');
+            try {
+                if (window.ImageLoader && typeof window.ImageLoader.loadTestImages === 'function') {
+                    const reloadedImages = await window.ImageLoader.loadTestImages();
+                    if (reloadedImages && reloadedImages.length === 11) {
+                        testImagesBase64 = reloadedImages;
+                        const successfullyLoaded = testImagesBase64.filter(img => img && img.length > 200).length;
+                        console.log(`✅ Reloaded ${testImagesBase64.length} test images (${successfullyLoaded} successfully loaded)`);
+                    }
+                }
+            } catch (error) {
+                console.error('Error reloading images:', error);
+            }
+        } else {
+            console.log(`✅ Using ${testImagesBase64.length} pre-loaded images (cached)`);
+        }
+        
         isScanning = true;
         updateStatus('Scanning...', 'scanning');
         
-        // Generate 10 random locations for real scans
+        // Generate locations for real scans (one per image to test all 11)
         const realScanLocations = this.getRandomLocations(CONFIG.realScanCount);
+        console.log(`📸 Will send ${CONFIG.realScanCount} scans to test all ${testImagesBase64.length} images`);
         
         // Simulate 990 mock scans instantly
         this.simulateMockScans(CONFIG.mockScanCount);
@@ -443,10 +494,16 @@ const BatchScanEngine = {
     },
     
     async submitRealScans(scanLocations) {
+        // Track which images are used for testing
+        const imageUsageCount = new Array(testImagesBase64.length).fill(0);
+        const imageNames = window.ImageLoader?.TEST_IMAGES || [];
+        // Track which images have been used for high-threat alerts to ensure uniqueness
+        const usedImageIndices = new Set();
+        
         for (let i = 0; i < scanLocations.length; i++) {
             const location = scanLocations[i];
             
-            // Wait 30s between scans (except first)
+            // Wait 15s between scans (except first)
             if (i > 0) {
                 await this.sleep(CONFIG.realScanInterval);
             }
@@ -454,14 +511,34 @@ const BatchScanEngine = {
             // Generate camera name
             const cameraName = `Parking-Lot-Cam-${String(Math.floor(Math.random() * 10) + 1).padStart(2, '0')}`;
             
-            // Randomly select from available test images
+            // Select image: ensure each scan uses a different image (cycle through all 11)
             let imageBase64;
             let testImageIndex = null;
             if (testImagesBase64.length > 0) {
-                // Randomly select a test image
-                testImageIndex = Math.floor(Math.random() * testImagesBase64.length);
-                imageBase64 = testImagesBase64[testImageIndex];
-                console.log(`Using random test image ${testImageIndex + 1} (${testImagesBase64.length} available) for scan ${i + 1}`);
+                // Use images in order to ensure all 11 are tested
+                testImageIndex = i % testImagesBase64.length;
+                
+                // Only use valid images (skip placeholders)
+                if (testImagesBase64[testImageIndex] && testImagesBase64[testImageIndex].length > 200) {
+                    imageBase64 = testImagesBase64[testImageIndex];
+                    usedImageIndices.add(testImageIndex);
+                } else {
+                    // If this image is invalid, find next valid one
+                    for (let j = 0; j < testImagesBase64.length; j++) {
+                        const idx = (testImageIndex + j) % testImagesBase64.length;
+                        if (testImagesBase64[idx] && testImagesBase64[idx].length > 200 && !usedImageIndices.has(idx)) {
+                            testImageIndex = idx;
+                            imageBase64 = testImagesBase64[testImageIndex];
+                            usedImageIndices.add(testImageIndex);
+                            break;
+                        }
+                    }
+                }
+                
+                // Track usage
+                imageUsageCount[testImageIndex]++;
+                const imageName = imageNames[testImageIndex] ? imageNames[testImageIndex].split('/').pop() : `Image ${testImageIndex + 1}`;
+                console.log(`📸 Scan ${i + 1}/${scanLocations.length}: Using image ${testImageIndex + 1}/${testImagesBase64.length} - ${imageName} (expecting high-threat alert)`);
             } else {
                 // Placeholder for remaining scans (will be replaced with real images later)
                 // Must be > 100 chars for validation - using a 10x10 pixel PNG
@@ -549,6 +626,63 @@ const BatchScanEngine = {
                 ScanLogManager.addLogEntry(logEntry);
             }
         }
+        
+        // Display summary of image usage
+        console.log('\n📊 Image Usage Summary:');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        // imageNames already declared at function start (line 493)
+        let totalUsed = 0;
+        let uniqueImagesUsed = 0;
+        
+        imageUsageCount.forEach((count, index) => {
+            const imageName = imageNames[index] ? imageNames[index].split('/').pop() : `Image ${index + 1}`;
+            if (count > 0) {
+                uniqueImagesUsed++;
+                console.log(`  Image ${index + 1}: ${imageName} - Used ${count} time(s)`);
+            }
+            totalUsed += count;
+        });
+        
+        console.log(`\n✅ Total scans: ${scanLocations.length}`);
+        console.log(`✅ Unique images used: ${uniqueImagesUsed} out of ${testImagesBase64.length}`);
+        console.log(`✅ Total image selections: ${totalUsed}`);
+        
+        if (uniqueImagesUsed === testImagesBase64.length) {
+            console.log('🎉 All images were used at least once!');
+        } else {
+            const unused = testImagesBase64.length - uniqueImagesUsed;
+            console.log(`⚠️  ${unused} image(s) were not used. Run more scans to test all images.`);
+        }
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+        
+        // Display High-Threat Alert Image Usage Summary
+        console.log('\n🎯 High-Threat Alert Image Usage Summary:');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        let highThreatUniqueImages = 0;
+        let highThreatTotalUsage = 0;
+        
+        for (let i = 0; i < testImagesBase64.length; i++) {
+            const count = highThreatImageUsage[i] || 0;
+            if (count > 0) {
+                highThreatUniqueImages++;
+                highThreatTotalUsage += count;
+                const imageName = imageNames[i] ? imageNames[i].split('/').pop() : `Image ${i + 1}`;
+                console.log(`  Image ${i + 1}: ${imageName} - Appeared in ${count} High-Threat Alert(s)`);
+            }
+        }
+        
+        console.log(`\n✅ Total High-Threat Alerts: ${alerts.length}`);
+        console.log(`✅ Unique images in High-Threat Alerts: ${highThreatUniqueImages} out of ${testImagesBase64.length}`);
+        console.log(`✅ Total High-Threat image appearances: ${highThreatTotalUsage}`);
+        
+        if (highThreatUniqueImages === testImagesBase64.length) {
+            console.log('🎉 All 11 images have appeared in High-Threat Alerts!');
+        } else {
+            const unusedInAlerts = testImagesBase64.length - highThreatUniqueImages;
+            console.log(`⚠️  ${unusedInAlerts} image(s) have not appeared in High-Threat Alerts yet.`);
+            console.log(`   (This is normal if not all scans resulted in high-threat matches)`);
+        }
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
     },
     
     async submitScan(location, cameraName, imageBase64) {
@@ -878,6 +1012,17 @@ const BatchScanEngine = {
     },
     
     handleHighThreat(scanResult, location, testImageIndex = null) {
+        // Track which image was used for this high-threat alert
+        if (testImageIndex !== null && testImageIndex < testImagesBase64.length) {
+            if (!highThreatImageUsage[testImageIndex]) {
+                highThreatImageUsage[testImageIndex] = 0;
+            }
+            highThreatImageUsage[testImageIndex]++;
+            
+            const imageName = window.ImageLoader?.TEST_IMAGES[testImageIndex]?.split('/').pop() || `Image ${testImageIndex + 1}`;
+            console.log(`🎯 High-Threat Alert #${alerts.length + 1} using image ${testImageIndex + 1}/${testImagesBase64.length}: ${imageName}`);
+        }
+        
         console.log('🚨 Handling high-threat alert:', { 
             scanId: scanResult.scanId || scanResult.id,
             topScore: scanResult.topScore,
@@ -1563,3 +1708,54 @@ function updateStatus(text, type = 'ready') {
     dot.className = 'status-dot ' + type;
 }
 
+// Utility function to check High-Threat Alert image usage (callable from browser console)
+window.checkHighThreatImageUsage = function() {
+    console.log('\n🎯 High-Threat Alert Image Usage Report');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    
+    const imageNames = window.ImageLoader?.TEST_IMAGES || [];
+    const totalImages = testImagesBase64.length;
+    let highThreatUniqueImages = 0;
+    let highThreatTotalUsage = 0;
+    
+    console.log(`📊 Total Images Available: ${totalImages}`);
+    console.log(`📊 Total High-Threat Alerts: ${alerts.length}`);
+    console.log('');
+    
+    for (let i = 0; i < totalImages; i++) {
+        const count = highThreatImageUsage[i] || 0;
+        const imageName = imageNames[i] ? imageNames[i].split('/').pop() : `Image ${i + 1}`;
+        const status = count > 0 ? '✅' : '❌';
+        console.log(`${status} Image ${i + 1}/${totalImages}: ${imageName}`);
+        if (count > 0) {
+            highThreatUniqueImages++;
+            highThreatTotalUsage += count;
+            console.log(`   └─ Appeared in ${count} High-Threat Alert(s)`);
+        } else {
+            console.log(`   └─ Not yet used in any High-Threat Alert`);
+        }
+    }
+    
+    console.log('');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log(`✅ Unique images in High-Threat Alerts: ${highThreatUniqueImages} out of ${totalImages}`);
+    console.log(`✅ Total High-Threat image appearances: ${highThreatTotalUsage}`);
+    
+    if (highThreatUniqueImages === totalImages) {
+        console.log('🎉 SUCCESS: All images have appeared in High-Threat Alerts!');
+    } else {
+        const unusedInAlerts = totalImages - highThreatUniqueImages;
+        console.log(`⚠️  ${unusedInAlerts} image(s) have not appeared in High-Threat Alerts yet.`);
+        console.log(`   (This is normal if not all scans resulted in high-threat matches)`);
+    }
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+    
+    return {
+        totalImages,
+        totalAlerts: alerts.length,
+        uniqueImagesInAlerts: highThreatUniqueImages,
+        totalImageAppearances: highThreatTotalUsage,
+        allImagesUsed: highThreatUniqueImages === totalImages,
+        usage: highThreatImageUsage
+    };
+};
