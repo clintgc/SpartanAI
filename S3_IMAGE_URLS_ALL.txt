@@ -1,0 +1,40 @@
+# S3 Image URLs - All Test Images
+
+## Bucket: spartan-ai-test-images-1768494236
+## Region: us-east-1
+
+## Image URLs:
+
+1. ASSAULT-NC2.webp
+   https://spartan-ai-test-images-1768494236.s3.us-east-1.amazonaws.com/ASSAULT-NC2.webp
+
+2. AmirFatenMekky.bmp
+   https://spartan-ai-test-images-1768494236.s3.us-east-1.amazonaws.com/AmirFatenMekky.bmp
+
+3. Anthony-FL.jpeg
+   https://spartan-ai-test-images-1768494236.s3.us-east-1.amazonaws.com/Anthony-FL.jpeg
+
+4. ArmedRobbery-MI.webp
+   https://spartan-ai-test-images-1768494236.s3.us-east-1.amazonaws.com/ArmedRobbery-MI.webp
+
+5. Assault-FL.webp
+   https://spartan-ai-test-images-1768494236.s3.us-east-1.amazonaws.com/Assault-FL.webp
+
+6. Assault-Robbery-AL.png
+   https://spartan-ai-test-images-1768494236.s3.us-east-1.amazonaws.com/Assault-Robbery-AL.png
+
+7. Burglary-OR.webp
+   https://spartan-ai-test-images-1768494236.s3.us-east-1.amazonaws.com/Burglary-OR.webp
+
+8. ThreatSubject1.webp
+   https://spartan-ai-test-images-1768494236.s3.us-east-1.amazonaws.com/ThreatSubject1.webp
+
+9. Violent-NV.webp
+   https://spartan-ai-test-images-1768494236.s3.us-east-1.amazonaws.com/Violent-NV.webp
+
+10. WANTED-CA.webp
+   https://spartan-ai-test-images-1768494236.s3.us-east-1.amazonaws.com/WANTED-CA.webp
+
+11. Wanted_FL3.webp
+   https://spartan-ai-test-images-1768494236.s3.us-east-1.amazonaws.com/Wanted_FL3.webp
+

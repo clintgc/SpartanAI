@@ -874,11 +874,9 @@ const BatchScanEngine = {
                     let originalScanImageDataUrl = null;
                     if (storedImageIndexForImage !== null && storedImageIndexForImage < testImagesBase64.length) {
                         const imagePath = window.ImageLoader?.TEST_IMAGES[storedImageIndexForImage] || '';
-                        if (imagePath.endsWith('.jpeg') || imagePath.endsWith('.jpg')) {
-                            originalScanImageDataUrl = `data:image/jpeg;base64,${testImagesBase64[storedImageIndexForImage]}`;
-                        } else if (imagePath.endsWith('.webp')) {
-                            originalScanImageDataUrl = `data:image/webp;base64,${testImagesBase64[storedImageIndexForImage]}`;
-                        }
+                        const base64 = testImagesBase64[storedImageIndexForImage];
+                        const mime = imagePath.endsWith('.png') ? 'image/png' : imagePath.endsWith('.bmp') ? 'image/bmp' : imagePath.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+                        if (base64) originalScanImageDataUrl = `data:${mime};base64,${base64}`;
                     }
                     
                     console.log('🖼️ Image extraction:', {
@@ -1048,12 +1046,9 @@ const BatchScanEngine = {
         // If we have a test image index, add it to scanData for POI display
         if (testImageIndex !== null && testImageIndex < testImagesBase64.length) {
             const imagePath = window.ImageLoader?.TEST_IMAGES[testImageIndex] || '';
-            let imageDataUrl = '';
-            if (imagePath.endsWith('.jpeg') || imagePath.endsWith('.jpg')) {
-                imageDataUrl = `data:image/jpeg;base64,${testImagesBase64[testImageIndex]}`;
-            } else if (imagePath.endsWith('.webp')) {
-                imageDataUrl = `data:image/webp;base64,${testImagesBase64[testImageIndex]}`;
-            }
+            const base64 = testImagesBase64[testImageIndex];
+            const mime = imagePath.endsWith('.png') ? 'image/png' : imagePath.endsWith('.bmp') ? 'image/bmp' : imagePath.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+            const imageDataUrl = base64 ? `data:${mime};base64,${base64}` : '';
             
             console.log(`📷 Adding test image ${testImageIndex} to scan result:`, {
                 imagePath,
@@ -1403,6 +1398,11 @@ const POIPanelManager = {
         // Extract data - handle various data structures
         const allMatches = scanData.matches && Array.isArray(scanData.matches) ? scanData.matches : [];
         const topMatch = allMatches.length > 0 ? allMatches[0] : null;
+        const matchThreshold = Number(CONFIG.highThreatThreshold) || 0;
+        const filteredMatches = allMatches.filter(match => {
+            const score = Number(match?.score);
+            return Number.isFinite(score) && score >= matchThreshold;
+        });
         
         // Handle biometrics - could be array or single object
         let biometrics = null;
@@ -1415,9 +1415,27 @@ const POIPanelManager = {
         }
         
         const crimes = Array.isArray(scanData.crimes) ? scanData.crimes : (scanData.crimes ? [scanData.crimes] : []);
+        const parseCrimeDate = (value) => {
+            if (!value) return 0;
+            const date = new Date(value);
+            const time = date.getTime();
+            return Number.isNaN(time) ? 0 : time;
+        };
+        const formatCrimeDate = (value) => {
+            if (!value) return 'Unknown date';
+            const date = new Date(value);
+            return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString();
+        };
+        const sortedCrimes = crimes.slice().sort((a, b) => parseCrimeDate(b.date) - parseCrimeDate(a.date));
+        const primaryCrime = sortedCrimes.length > 0 ? sortedCrimes[0] : null;
+        const recentCrimes = sortedCrimes.slice(0, 3);
         const topScore = scanData.topScore || (topMatch?.score) || 0;
         const subjectName = topMatch?.subject?.name || scanData.subjectName || scanData.mugShotUrl || 'Person of Interest';
         const subjectType = topMatch?.subject?.type || scanData.subjectType || 'WANTED';
+        const offenseLabel = primaryCrime ? 'Primary Offense' : 'Subject Type';
+        const offenseValue = primaryCrime
+            ? [primaryCrime.type, primaryCrime.description].filter(Boolean).join(' - ') || 'Unknown'
+            : subjectType;
         const subjectId = topMatch?.subject?.id || topMatch?.id || 'Unknown';
         
         // Try multiple sources for subject photo (mugshot) - prioritize Captis-provided mugshot
@@ -1559,8 +1577,18 @@ const POIPanelManager = {
                     <div class="poi-info-value">${subjectId}</div>
                 </div>
                 <div class="poi-info-item">
-                    <div class="poi-info-label">Type</div>
-                    <div class="poi-info-value">${subjectType}</div>
+                    <div class="poi-info-label">${offenseLabel}</div>
+                    <div class="poi-info-value">${offenseValue}</div>
+                    ${recentCrimes.length > 0 ? `
+                    <ul class="poi-offense-list">
+                        ${recentCrimes.map(crime => `
+                            <li class="poi-offense-item">
+                                <span class="poi-offense-title">${[crime.type, crime.description].filter(Boolean).join(' - ') || 'Unknown'}</span>
+                                <span class="poi-offense-date">${formatCrimeDate(crime.date)}</span>
+                            </li>
+                        `).join('')}
+                    </ul>
+                    ` : ''}
                 </div>
                 <div class="poi-info-item">
                     <div class="poi-info-label">Score Level</div>
@@ -1588,11 +1616,11 @@ const POIPanelManager = {
                 ` : ''}
             </div>
             
-            ${allMatches.length > 1 ? `
+            ${filteredMatches.length > 1 ? `
             <div class="poi-section">
-                <h4>All Matches (${allMatches.length})</h4>
+                <h4>All Matches (${filteredMatches.length})</h4>
                 <div class="matches-list">
-                    ${allMatches.slice(0, 5).map((match, idx) => `
+                    ${filteredMatches.slice(0, 5).map((match, idx) => `
                         <div class="match-item">
                             <div class="match-rank">#${idx + 1}</div>
                             <div class="match-details">
@@ -1602,7 +1630,7 @@ const POIPanelManager = {
                             </div>
                         </div>
                     `).join('')}
-                    ${allMatches.length > 5 ? `<div class="match-more">+ ${allMatches.length - 5} more matches</div>` : ''}
+                    ${filteredMatches.length > 5 ? `<div class="match-more">+ ${filteredMatches.length - 5} more matches</div>` : ''}
                 </div>
             </div>
             ` : ''}
@@ -1665,9 +1693,9 @@ const POIPanelManager = {
             
             ${crimes.length > 0 ? `
             <div class="poi-section">
-                <h4>Criminal Record</h4>
+                <h4>Crime History</h4>
                 <ul class="crimes-list">
-                    ${crimes.map(crime => `
+                    ${sortedCrimes.map(crime => `
                         <li class="crime-item">
                             <div class="crime-type">${crime.type || 'UNKNOWN'}</div>
                             <div class="crime-description">${crime.description || 'No description'}</div>

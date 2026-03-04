@@ -494,6 +494,35 @@ body {
     font-weight: 600;
 }
 
+.poi-offense-list {
+    list-style: none;
+    margin-top: 0.5rem;
+}
+
+.poi-offense-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    padding: 0.25rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.poi-offense-item:last-child {
+    border-bottom: none;
+}
+
+.poi-offense-title {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.poi-offense-date {
+    white-space: nowrap;
+    color: var(--text-secondary);
+}
+
 .poi-score {
     font-size: 2rem;
     font-weight: 700;

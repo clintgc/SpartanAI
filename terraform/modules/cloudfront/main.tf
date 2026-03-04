@@ -20,20 +20,22 @@ resource "aws_cloudfront_origin_access_control" "s3_oac" {
 resource "aws_cloudfront_function" "url_rewrite" {
   name    = "${replace(var.domain_name, ".", "-")}-url-rewrite"
   runtime = "cloudfront-js-1.0"
-  comment = "Rewrite /optout and /optin to their index.html files for ${var.domain_name}"
+  comment = "Rewrite /optout, /optin, /privacy, and /demo-dashboard to their index.html files for ${var.domain_name}"
   publish = true
   code    = <<-EOF
 function handler(event) {
     var request = event.request;
     var uri = request.uri;
     
-    // Rewrite /optout, /optin, and /privacy to their index.html files
+    // Rewrite /optout, /optin, /privacy, and /demo-dashboard to their index.html files
     if (uri === '/optout' || uri === '/optout/') {
         request.uri = '/optout/index.html';
     } else if (uri === '/optin' || uri === '/optin/') {
         request.uri = '/optin/index.html';
     } else if (uri === '/privacy' || uri === '/privacy/') {
         request.uri = '/privacy/index.html';
+    } else if (uri === '/demo-dashboard' || uri === '/demo-dashboard/') {
+        request.uri = '/demo-dashboard.html';
     }
     
     return request;

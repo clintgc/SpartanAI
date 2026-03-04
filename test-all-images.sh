@@ -6,21 +6,34 @@
 set -e
 
 API="https://yedpdu8io5.execute-api.us-east-1.amazonaws.com/v1"
-API_KEY="gHpRowMGemasl3kp73vuv94KLI14f0hU1t5sNDyl"
+API_KEY="${API_KEY:-${SPARTAN_API_KEY:-}}"
 ACCOUNT_ID="550e8400-e29b-41d4-a716-446655440000"
-IMAGE_DIR="/Users/clintgc/SpaceMonkeyII/tests/test_images"
+IMAGE_DIR="/Users/clintgc/SpaceMonkeyII/www/img/test-images"
 
-# Array of images to test
+if [ -z "$API_KEY" ]; then
+    echo "❌ Missing API key. Set API_KEY (or SPARTAN_API_KEY) in your environment."
+    exit 1
+fi
+
+# Array of all 11 test images
 IMAGES=(
     "Anthony-FL.jpeg"
     "ArmedRobbery-MI.webp"
     "ASSAULT-NC2.webp"
     "Burglary-OR.webp"
+    "AmirFatenMekky.bmp"
+    "Assault-FL.webp"
+    "Assault-Robbery-AL.png"
+    "ThreatSubject1.webp"
+    "Violent-NV.webp"
+    "WANTED-CA.webp"
+    "Wanted_FL3.webp"
 )
 
-echo "🧪 Spartan AI Batch Image Test"
+echo "🧪 Spartan AI Batch Image Test - WhatsApp Alert Testing"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "Testing ${#IMAGES[@]} images..."
+echo "Testing ${#IMAGES[@]} images for high-threat alerts (89%+)"
+echo "Each high-threat alert will trigger a WhatsApp message"
 echo ""
 
 # Results array
@@ -53,6 +66,9 @@ for i in "${!IMAGES[@]}"; do
             ;;
         webp)
             MIME_TYPE="image/webp"
+            ;;
+        bmp)
+            MIME_TYPE="image/bmp"
             ;;
         gif)
             MIME_TYPE="image/gif"
@@ -164,6 +180,10 @@ for i in "${!IMAGES[@]}"; do
         echo "   Score: ${FINAL_SCORE}%"
         echo "   Level: $FINAL_LEVEL"
         echo "   Scan ID: $SCAN_ID"
+        
+        if (( $(echo "$FINAL_SCORE >= 89" | bc -l 2>/dev/null || echo "0") )); then
+            echo "   📱 WhatsApp alert should have been sent!"
+        fi
         
         RESULTS+=("$IMAGE_FILE: $THREAT_TEXT - ${FINAL_SCORE}% (Level: $FINAL_LEVEL)")
     else
